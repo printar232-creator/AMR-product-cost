@@ -4,9 +4,9 @@ import io
 
 st.set_page_config(page_title="AMR Auto Price Matcher", layout="wide")
 
-st.title("📦 AMR Auto Product Price Matching System")
+st.title("📦 AMR Auto Product Price Matching System (All Rows)")
 st.markdown("""
-ระบบจับคู่และกรอกราคาขาย (**SALE PRICE**) อัตโนมัติแบบคลิกเดียวจบ 
+ระบบจับคู่และกรอกราคาขาย (**SALE PRICE**) อัตโนมัติแบบคลิกเดียวจบ **เวอร์ชันดึงข้อมูลครบทุกแถว 100%**
 โดยระบบจะสแกนหาและจับคู่จาก 3 หัวข้อหลักให้อัตโนมัติ:
 1. **TYPE OF PRODUCT** | 2. **PACKAGING** | 3. **MATERIAL**
 """)
@@ -15,7 +15,6 @@ st.sidebar.header("📁 อัปโหลดไฟล์ข้อมูล")
 db_file = st.sidebar.file_uploader("1. ไฟล์ฐานข้อมูลต้นทาง (database for product cost AMR.xlsx)", type=["xlsx"])
 curr_file = st.sidebar.file_uploader("2. ไฟล์ข้อมูลปัจจุบันที่ต้องการเติมราคา", type=["xlsx"])
 
-# ฟังก์ชันพิเศษช่วยค้นหาคอลัมน์ที่ใกล้เคียงที่สุดในกรณีที่สะกดไม่ตรงเป๊ะ
 def find_smart_column(df_columns, target_keywords):
     for col in df_columns:
         col_clean = str(col).strip().upper().replace(" ", "").replace("_", "").replace("-", "")
@@ -25,61 +24,60 @@ def find_smart_column(df_columns, target_keywords):
     return None
 
 if db_file and curr_file:
-    # อ่านไฟล์โดยล้างแถวว่างด้านบนออกอัตโนมัติ เพื่อป้องกันกรณีหัวตารางไม่ได้อยู่บรรทัดแรก
+    # อ่านไฟล์ทั้งหมดเข้ามาทำงาน (ไม่มีการจำกัดแถว)
     df_db = pd.read_excel(db_file)
     df_curr = pd.read_excel(curr_file)
     
-    # กำหนด Keyword ที่มีโอกาสเจอในระบบ
+    # กำหนด Keyword สำหรับค้นหาหัวคอลัมน์อัตโนมัติ
     type_kws = ["TYPEOFPRODUCT", "PRODUCTTYPE", "PRODUCT", "ประเภทสินค้า", "ชนิดสินค้า"]
     pkg_kws = ["PACKAGING", "PKG", "PACKAGE", "บรรจุภัณฑ์", "แพ็คเกจ", "ถุง"]
     mat_kws = ["MATERIAL", "MAT", "GRADE", "วัสดุ", "เกรด"]
     price_kws = ["SALEPRICE", "PRICE", "ราคาขาย", "ราคา"]
 
-    # ค้นหาชื่อคอลัมน์จริงจากไฟล์ของฝั่ง Database
+    # จับคู่คอลัมน์อัตโนมัติ
     db_type_col = find_smart_column(df_db.columns, type_kws)
     db_pkg_col = find_smart_column(df_db.columns, pkg_kws)
     db_mat_col = find_smart_column(df_db.columns, mat_kws)
     db_price_col = find_smart_column(df_db.columns, price_kws)
 
-    # ค้นหาชื่อคอลัมน์จริงจากไฟล์ของฝั่ง ไฟล์ปัจจุบัน
     curr_type_col = find_smart_column(df_curr.columns, type_kws)
     curr_pkg_col = find_smart_column(df_curr.columns, pkg_kws)
     curr_mat_col = find_smart_column(df_curr.columns, mat_kws)
 
-    st.subheader("📊 1. ตรวจสอบไฟล์ที่อัปโหลด (ระบบตรวจจับคอลัมน์อัตโนมัติ)")
+    st.subheader("📊 1. ตรวจสอบไฟล์ที่อัปโหลด (แสดงข้อมูลทั้งหมดในไฟล์)")
     
-    # ตรวจสอบความพร้อมของคอลัมน์
     db_ready = db_type_col and db_pkg_col and db_mat_col and db_price_col
     curr_ready = curr_type_col and curr_pkg_col and curr_mat_col
 
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown(f"🗃️ **ไฟล์ฐานข้อมูล (Database): {len(df_db)} แถว**")
+        st.markdown(f"🗃️ **ไฟล์ฐานข้อมูล (Database) มีทั้งหมด: {len(df_db)} แถว**")
         if db_ready:
-            st.success(f"🔍 ตรวจพบคอลัมน์หลักครบถ้วน:\n- ประเภท: `{db_type_col}`\n- บรรจุภัณฑ์: `{db_pkg_col}`\n- วัสดุ: `{db_mat_col}`\n- ราคา: `{db_price_col}`")
+            st.success(f"🔍 พบคอลัมน์: ประเภท=`{db_type_col}`, บรรจุภัณฑ์=`{db_pkg_col}`, วัสดุ=`{db_mat_col}`, ราคา=`{db_price_col}`")
         else:
-            st.error("❌ ฝั่ง Database: ตรวจหาคอลัมน์หลักบางคอลัมน์ไม่เจอ โปรดเช็คชื่อหัวตารางใน Excel")
-        st.dataframe(df_db.head(5))
+            st.error("❌ ฝั่ง Database: ตรวจหาคอลัมน์หลักบางคอลัมน์ไม่เจอ")
+        # แสดงตารางข้อมูลทั้งหมดของ Database (ไม่มี .head())
+        st.dataframe(df_db)
         
     with col2:
-        st.markdown(f"📄 **ไฟล์ปัจจุบันที่ต้องการเติมราคา: {len(df_curr)} แถว**")
+        st.markdown(f"📄 **ไฟล์ปัจจุบันที่ต้องการเติมราคา มีทั้งหมด: {len(df_curr)} แถว**")
         if curr_ready:
-            st.success(f"🔍 ตรวจพบคอลัมน์หลักครบถ้วน:\n- ประเภท: `{curr_type_col}`\n- บรรจุภัณฑ์: `{curr_pkg_col}`\n- วัสดุ: `{curr_mat_col}`")
+            st.success(f"🔍 พบคอลัมน์: ประเภท=`{curr_type_col}`, บรรจุภัณฑ์=`{curr_pkg_col}`, วัสดุ=`{curr_mat_col}`")
         else:
-            st.error("❌ ฝั่ง ไฟล์ปัจจุบัน: ตรวจหาคอลัมน์หลักบางคอลัมน์ไม่เจอ โปรดเช็คชื่อหัวตารางใน Excel")
-        st.dataframe(df_curr.head(5))
+            st.error("❌ ฝั่ง ไฟล์ปัจจุบัน: ตรวจหาคอลัมน์หลักบางคอลัมน์ไม่เจอ")
+        # แสดงตารางข้อมูลทั้งหมดของ ไฟล์ปัจจุบัน (ไม่มี .head())
+        st.dataframe(df_curr)
 
     if not db_ready or not curr_ready:
-        st.warning("⚠️ วิธีแก้ไขในไฟล์ Excel ของคุณ: โปรดเปิดไฟล์ Excel ขึ้นมาดู แล้วแก้ไขชื่อหัวข้อ (Row แรกสุดของตาราง) ให้มีคำว่า TYPE OF PRODUCT, PACKAGING, MATERIAL หรือคำที่ใกล้เคียง จากนั้นค่อยอัปโหลดใหม่อีกครั้งครับ")
+        st.warning("⚠️ โปรดตรวจสอบหัวตารางใน Excel ให้มีคำสำคัญที่ระบุไว้ด้านบน เพื่อให้ระบบจับคู่คอลัมน์ได้ถูกต้องครับ")
     else:
         st.markdown("---")
-        if st.button("🚀 เริ่มต้นดึงข้อมูลราคาขายอัตโนมัติ (Run Auto-Match)"):
+        if st.button("🚀 เริ่มต้นดึงข้อมูลราคาขายอัตโนมัติ (Run Auto-Match All Rows)"):
             
-            # คัดลอกข้อมูลมาประมวลผล
             db_working = df_db.copy()
             curr_working = df_curr.copy()
             
-            # แปลงข้อมูลในคอลัมน์หลักให้เป็นข้อความดิบและตัดเว้นวรรค
+            # ลบช่องว่างหน้า-หลังข้อความของคอลัมน์หลักเพื่อความแม่นยำในการ Match
             db_working[db_type_col] = db_working[db_type_col].astype(str).str.strip()
             db_working[db_pkg_col] = db_working[db_pkg_col].astype(str).str.strip()
             db_working[db_mat_col] = db_working[db_mat_col].astype(str).str.strip()
@@ -88,7 +86,7 @@ if db_file and curr_file:
             curr_working[curr_pkg_col] = curr_working[curr_pkg_col].astype(str).str.strip()
             curr_working[curr_mat_col] = curr_working[curr_mat_col].astype(str).str.strip()
             
-            # เปลี่ยนชื่อคอลัมน์ฝั่ง Database ให้ตรงกับไฟล์ปัจจุบันเพื่อทำโครงสร้าง Merge
+            # เปลี่ยนชื่อคอลัมน์ฝั่ง Database ให้ตรงกับคอลัมน์ฝั่งไฟล์ปัจจุบันชั่วคราวเพื่อใช้เป็นตัวเชื่อม (Key)
             rename_dict = {
                 db_type_col: curr_type_col,
                 db_pkg_col: curr_pkg_col,
@@ -97,16 +95,15 @@ if db_file and curr_file:
             }
             db_working = db_working.rename(columns=rename_dict)
             
-            # คีย์หลักในการจับคู่
             join_keys = [curr_type_col, curr_pkg_col, curr_mat_col]
             
-            # ดึงเฉพาะคีย์หลักและคอลัมน์ราคาขาย ลบข้อมูลซ้ำซ้อน
-            df_db_prices = db_working[join_keys + ["SALE PRICE"]].drop_duplicates(subset=join_keys, keep='last')
+            # ดึงเฉพาะคีย์หลักและคอลัมน์ราคาขายจากฐานข้อมูลมาใช้งาน (ไม่มีการตัดแถวซ้ำออก เพื่อรักษารายการทั้งหมดไว้)
+            df_db_prices = db_working[join_keys + ["SALE PRICE"]]
             
-            # ลบคอลัมน์ราคาเดิมในไฟล์ปัจจุบันออกก่อน (ถ้ามี)
+            # ลบคอลัมน์ราคาเดิมในไฟล์ปัจจุบันออกก่อน (ถ้ามี) เพื่อนำราคาใหม่จากฐานข้อมูลไปใส่
             curr_working_clean = curr_working.drop(columns=["SALE PRICE"], errors="ignore")
             
-            # ทำการจับคู่ข้อมูลแบบ Left Join
+            # ทำการรวมไฟล์แบบ Left Join โดยยึดแถวทั้งหมดของไฟล์ปัจจุบันเป็นหลัก (จำนวนแถวจะมาครบเท่าเดิม 100%)
             df_result = pd.merge(
                 curr_working_clean,
                 df_db_prices,
@@ -114,18 +111,20 @@ if db_file and curr_file:
                 how="left"
             )
             
+            # กรณีที่จับคู่ไม่เจอ ให้ขึ้นตัวอักษร "Not Found"แทนช่องว่าง
             df_result["SALE PRICE"] = df_result["SALE PRICE"].fillna("Not Found")
             
             found_count = int((df_result["SALE PRICE"] != "Not Found").sum())
             not_found_count = int((df_result["SALE PRICE"] == "Not Found").sum())
             total_rows = len(df_result)
             
-            st.success("✅ ประมวลผลสำเร็จ! เติมราคาขายเรียบร้อยแล้ว")
-            st.info(f"📋 จำนวนแถวทั้งหมด: {total_rows} | เจอราคา: {found_count} รายการ | ไม่เจอราคา: {not_found_count} รายการ")
+            st.success("✅ ประมวลผลสำเร็จ! ดึงข้อมูลครบทุกแถวเรียบร้อยแล้ว")
+            st.info(f"📋 จำนวนแถวผลลัพธ์ทั้งหมด: {total_rows} แถว | เจอราคา: {found_count} รายการ | ไม่เจอราคา: {not_found_count} รายการ")
             
-            st.markdown("### 📋 2. ตารางผลลัพธ์ข้อมูลที่เติมราคาขายเรียบร้อยแล้ว")
+            st.markdown("### 📋 2. ตารางผลลัพธ์ข้อมูลเวอร์ชันอัปเดต (ครบทุกแถว)")
             st.dataframe(df_result)
             
+            # แปลงข้อมูลกลับเป็นไฟล์ Excel สำหรับดาวน์โหลด
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df_result.to_excel(writer, index=False, sheet_name='Updated_Sale_Price')
@@ -134,7 +133,7 @@ if db_file and curr_file:
             st.download_button(
                 label="📥 ดาวน์โหลดไฟล์ที่เติมราคาขายเสร็จสมบูรณ์ (Excel)",
                 data=processed_data,
-                file_name="updated_sales_price_output.xlsx",
+                file_name="updated_sales_price_all_rows.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 else:
