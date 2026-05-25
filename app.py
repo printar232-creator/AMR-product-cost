@@ -27,21 +27,18 @@ if db_file and curr_file:
     df_db = pd.read_excel(db_file)
     df_curr = pd.read_excel(curr_file)
     
-    # เพิ่ม Keyword สำหรับค้นหาหัวคอลัมน์ RATIO อัตโนมัติ
     type_kws = ["TYPEOFPRODUCT", "PRODUCTTYPE", "PRODUCT", "ประเภทสินค้า", "ชนิดสินค้า"]
     pkg_kws = ["PACKAGING", "PKG", "PACKAGE", "บรรจุภัณฑ์", "แพ็คเกจ", "ถุง"]
     mat_kws = ["MATERIAL", "MAT", "GRADE", "วัสดุ", "เกรด"]
     ratio_kws = ["RATIO", "อัตราส่วน", "สัดส่วน", "เปอร์เซ็นต์", "MESH"]
     price_kws = ["SALEPRICE", "PRICE", "ราคาขาย", "ราคา"]
 
-    # จับคู่คอลัมน์ฝั่ง Database
     db_type_col = find_smart_column(df_db.columns, type_kws)
     db_pkg_col = find_smart_column(df_db.columns, pkg_kws)
     db_mat_col = find_smart_column(df_db.columns, mat_kws)
     db_ratio_col = find_smart_column(df_db.columns, ratio_kws)
     db_price_col = find_smart_column(df_db.columns, price_kws)
 
-    # จับคู่คอลัมน์ฝั่ง ไฟล์ปัจจุบัน
     curr_type_col = find_smart_column(df_curr.columns, type_kws)
     curr_pkg_col = find_smart_column(df_curr.columns, pkg_kws)
     curr_mat_col = find_smart_column(df_curr.columns, mat_kws)
@@ -58,7 +55,7 @@ if db_file and curr_file:
         if db_ready:
             st.success(f"🔍 พบคอลัมน์หลัก:\n- ประเภท=`{db_type_col}`\n- บรรจุภัณฑ์=`{db_pkg_col}`\n- วัสดุ=`{db_mat_col}`\n- อัตราส่วน=`{db_ratio_col}`\n- ราคา=`{db_price_col}`")
         else:
-            st.error("❌ ฝั่ง Database: ตรวจหาคอลัมน์หลักบางคอลัมน์ไม่เจอ (เช็คชื่อหัวข้อ RATIO หรือใกล้เคียง)")
+            st.error("❌ ฝั่ง Database: ตรวจหาคอลัมน์หลักบางคอลัมน์ไม่เจอ")
         st.dataframe(df_db)
         
     with col2:
@@ -66,7 +63,7 @@ if db_file and curr_file:
         if curr_ready:
             st.success(f"🔍 พบคอลัมน์หลัก:\n- ประเภท=`{curr_type_col}`\n- บรรจุภัณฑ์=`{curr_pkg_col}`\n- วัสดุ=`{curr_mat_col}`\n- อัตราส่วน=`{curr_ratio_col}`")
         else:
-            st.error("❌ ฝั่ง ไฟล์ปัจจุบัน: ตรวจหาคอลัมน์หลักบางคอลัมน์ไม่เจอ (เช็คชื่อหัวข้อ RATIO หรือใกล้เคียง)")
+            st.error("❌ ฝั่ง ไฟล์ปัจจุบัน: ตรวจหาคอลัมน์หลักบางคอลัมน์ไม่เจอ")
         st.dataframe(df_curr)
 
     if not db_ready or not curr_ready:
@@ -78,6 +75,58 @@ if db_file and curr_file:
             db_working = df_db.copy()
             curr_working = df_curr.copy()
             
-            # ลบช่องว่างหน้า-หลังข้อความของทั้ง 4 คอลัมน์
+            # ✅ แก้ไขจุดลูปทำความสะอาดข้อมูลให้ถูกต้องสมบูรณ์
             for col in [db_type_col, db_pkg_col, db_mat_col, db_ratio_col]:
-                db_working[col] = db_working
+                db_working[col] = db_working[col].astype(str).str.strip()
+                
+            for col in [curr_type_col, curr_pkg_col, curr_mat_col, curr_ratio_col]:
+                curr_working[col] = curr_working[col].astype(str).str.strip()
+            
+            rename_dict = {
+                db_type_col: curr_type_col,
+                db_pkg_col: curr_pkg_col,
+                db_mat_col: curr_mat_col,
+                db_ratio_col: curr_ratio_col,
+                db_price_col: "SALE PRICE"
+            }
+            db_working = db_working.rename(columns=rename_dict)
+            
+            join_keys = [curr_type_col, curr_pkg_col, curr_mat_col, curr_ratio_col]
+            
+            df_db_prices = db_working[join_keys + ["SALE PRICE"]].drop_duplicates(subset=join_keys, keep='last')
+            
+            curr_working_clean = curr_working.drop(columns=["SALE PRICE"], errors="ignore")
+            
+            df_result = pd.merge(
+                curr_working_clean,
+                df_db_prices,
+                on=join_keys,
+                how="left"
+            )
+            
+            df_result["SALE PRICE"] = df_result["SALE PRICE"].fillna("Not Found")
+            
+            is_found_mask = df_result["SALE PRICE"].astype(str) != "Not Found"
+            found_count = int(is_found_mask.values.sum())
+            total_rows = len(df_result)
+            not_found_count = total_rows - found_count
+            
+            st.success("✅ ประมวลผลสำเร็จ! ดึงข้อมูลครบทุกแถวโดยอ้างอิง 4 เงื่อนไขเรียบร้อยแล้ว")
+            st.info(f"📋 จำนวนแถวผลลัพธ์ทั้งหมด: {total_rows} แถว | เจอราคา: {found_count} รายการ | ไม่เจอราคา: {not_found_count} รายการ")
+            
+            st.markdown("### 📋 2. ตารางผลลัพธ์ข้อมูลเวอร์ชันอัปเดต (เทียบ 4 เงื่อนไข)")
+            st.dataframe(df_result)
+            
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df_result.to_excel(writer, index=False, sheet_name='Updated_Sale_Price')
+            processed_data = output.getvalue()
+            
+            st.download_button(
+                label="📥 ดาวน์โหลดไฟล์ที่เติมราคาขายเสร็จสมบูรณ์ (Excel)",
+                data=processed_data,
+                file_name="updated_sales_price_4_criteria.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+else:
+    st.info("💡 คำแนะนำ: โปรดอัปโหลดไฟล์ทั้ง 2 ไฟล์ที่แถบเมนูด้านซ้ายเพื่อเริ่มระบบทำงานอัตโนมัติ")
