@@ -23,16 +23,15 @@ if db_file and curr_file:
         df_db = pd.read_excel(db_file)
         df_curr = pd.read_excel(curr_file)
         
-        # ฟังก์ชันปรับแต่งหัวคอลัมน์ให้เป็นตัวพิมพ์ใหญ่และตัดช่องว่าง เพื่อลดความผิดพลาดในการค้นหา
+        # ปรับแต่งหัวคอลัมน์ให้เป็นตัวพิมพ์ใหญ่และตัดช่องว่าง
         def standardize_columns(df):
-            # แปลงชื่อคอลัมน์ทั้งหมดให้เป็นตัวอักษรพิมพ์ใหญ่ และตัดเว้นวรรคหน้า-หลัง
             df.columns = [str(col).strip().upper() for col in df.columns]
             return df
 
         df_db = standardize_columns(df_db)
         df_curr = standardize_columns(df_curr)
         
-        # คอลัมน์เงื่อนไขที่ระบบจะมองหาอัตโนมัติ
+        # คอลัมน์เงื่อนไขหลัก
         required_keys = ["TYPE OF PRODUCT", "PACKAGING", "MATERIAL"]
         
         st.subheader("📊 1. ตรวจสอบไฟล์ที่อัปโหลด")
@@ -44,28 +43,29 @@ if db_file and curr_file:
             st.markdown(f"📄 **ไฟล์ปัจจุบันที่ต้องการเติมราคา: {len(df_curr)} แถว**")
             st.dataframe(df_curr.head(5))
 
-        # ตรวจสอบว่าในทั้งสองไฟล์มีคอลัมน์ที่จำเป็นครบหรือไม่
+        # ตรวจสอบคอลัมน์ในไฟล์
         missing_db = [col for col in required_keys if col not in df_db.columns]
         missing_curr = [col for col in required_keys if col not in df_curr.columns]
         
         if missing_db:
-            st.error(f"❌ ไม่พบหัวข้อ {missing_db} ในไฟล์ฐานข้อมูล กรุณาตรวจสอบชื่อคอลัมน์")
+            st.error(f"❌ ไม่พบหัวข้อ {missing_db} ในไฟล์ฐานข้อมูล")
         elif missing_curr:
-            st.error(f"❌ 不พบหัวข้อ {missing_curr} ในไฟล์ปัจจุบัน กรุณาตรวจสอบชื่อคอลัมน์")
+            st.error(f"❌ ไม่พบหัวข้อ {missing_curr} ในไฟล์ปัจจุบัน")
         elif "SALE PRICE" not in df_db.columns:
             st.error("❌ ไม่พบหัวข้อ 'SALE PRICE' ในไฟล์ฐานข้อมูล (Database)")
         else:
-            # หากตรวจสอบผ่านหมดแล้ว ให้แสดงปุ่มประมวลผลทันที
             st.markdown("---")
             if st.button("🚀 เริ่มต้นดึงข้อมูลราคาขายอัตโนมัติ (Run Auto-Match)"):
                 
-                # ลบช่องว่างส่วนเกินในข้อมูลของทั้ง 3 คอลัมน์หลักเพื่อความแม่นยำสูงสุดในการเชื่อมโยงข้อมูล
+                # ลบช่องว่างส่วนเกินในข้อมูลของคอลัมน์หลัก
                 for col in required_keys:
                     df_db[col] = df_db[col].astype(str).str.strip()
                     df_curr[col] = df_curr[col].astype(str).str.strip()
                 
-                # เตรียมข้อมูลฝั่ง Database เฉพาะคีย์หลักและราคาสินค้า เพื่อนำไปแมตช์
-                # ใช้ .drop_duplicates เพื่อป้องกันกรณีราคาซ้ำในฐานข้อมูล และเลือกดึงแถวท้ายสุด
+                # เตรียมข้อมูลราคาจากฐานข้อมูลและลบแถวซ้ำ
                 df_db_prices = df_db[required_keys + ["SALE PRICE"]].drop_duplicates(subset=required_keys, keep='last')
                 
-                # ลบคอลัมน์ SALE PRICE เดิมในไฟล์ปัจจุบันออกก่อน (ถ้ามีอยู่แล้วแต่เป็นช่องว่าง) เพื่อนำราคา
+                # ลบคอลัมน์ SALE PRICE เดิมในไฟล์ปัจจุบันออกก่อนเพื่อใส่ราคาใหม่
+                df_curr_clean = df_curr.drop(columns=["SALE PRICE"], errors="ignore")
+                
+                # ทำการจับคู่ข้อมูลแบบ
