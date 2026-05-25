@@ -1,134 +1,79 @@
+import streamlit as pd
 import streamlit as st
 import pandas as pd
-import numpy as np
-import io
+import requests
+from io import BytesIO
 
-# 1. ตั้งค่าหน้าตาของโปรแกรมระบบพื้นฐาน
-st.set_page_config(
-    page_title="AMR Product Cost & Delivery Record System",
-    page_icon="📊",
-    layout="wide"
-)
+st.set_page_config(page_title="AMR Sales Price Matcher", layout="wide")
 
-# 2. แสดงหัวข้อหลักและคำอธิบายด้วยคำสั่งมาตรฐาน
-st.title("📊 ระบบคำนวณและเติมช่อง SALE PRICE อัตโนมัติ (AMR)")
-st.caption("อัปโหลดไฟล์บันทึกใบส่งสินค้าชั่วคราวประจำเดือน เพื่อเทียบราคาขายจากระบบฐานข้อมูลต้นทุนบน GitHub")
+st.title("📦 ระบบบันทึกใบส่งสินค้าชั่วคราวและคำนวณราคาขาย")
+st.subheader("บริษัท Asian Mineral Resources (AMR)")
 
-# 3. ตั้งค่าลิงก์ไปยังไฟล์ Database บน GitHub (กรุณาเปลี่ยนลิงก์ให้ตรงกับ Repository ของคุณ)
-GITHUB_RAW_URL = "https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME/main/database%20for%20product%20cost%20AMR.xlsx"
+# --- ส่วนการดึงข้อมูล Database จาก GitHub ---
+# เปลี่ยน URL ด้านล่างนี้ให้เป็นลิงก์ของ Repository คุณ (ต้องเป็น Raw URL)
+GITHUB_RAW_URL = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO_NAME/main/database%20for%20product%20cost%20AMR.xlsx"
 
 @st.cache_data
 def load_github_database(url):
-    """ฟังก์ชันดึงไฟล์เอ็กเซลจากลิงก์ดิบของ GitHub และอ่านแถวที่ 1-92"""
     try:
-        # อ่านจากแถวแรก (Row 1) ลงไปจนถึง 92 แถวตามเงื่อนไขข้อมูล
-        df_db = pd.read_excel(url, nrows=92)
-        
-        # ล้างเศษช่องว่างของหัวคอลัมน์
-        df_db.columns = df_db.columns.str.strip()
-        
-        # ปรับข้อมูลคีย์หลักให้เป็นข้อความที่ไม่มีช่องว่างส่วนเกิน
-        required_db_cols = ['TYPE OF PRODUCT', 'PAKAGING', 'MATERIAL', 'SALE PRICE']
-        for col in required_db_cols:
-            if col in df_db.columns:
-                df_db[col] = df_db[col].astype(str).str.strip()
-                
-        # แปลงราคาขายเป็นรูปแบบตัวเลข
-        df_db['SALE PRICE'] = pd.to_numeric(df_db['SALE PRICE'], errors='coerce')
-        return df_db, None
+        response = requests.get(url)
+        if response.status_code == 200:
+            # อ่านไฟล์ Excel ดึงข้อมูลแถว 1 ถึง 92 (index 0 ถึง 91) ทุกคอลัมน์
+            df_db = pd.read_excel(BytesIO(response.content))
+            df_db = df_db.iloc[0:92]  # จำกัดแถวที่ 1 ถึง 92 ตามเงื่อนไข
+            
+            # ลบช่องว่างในชื่อคอลัมน์และข้อมูลเพื่อป้องกันการจับคู่พลาด
+            for col in ['TYPE OF PRODUCT', 'PAKAGING', 'MATERIAL']:
+                if col in df_db.columns:
+                    df_db[col] = df_db[col].astype(str).str.strip()
+            return df_db
+        else:
+            st.error(f"ไม่สามารถดึงไฟล์จาก GitHub ได้ (Status Code: {response.status_code})")
+            return None
     except Exception as e:
-        return None, str(e)
+        st.error(f"เกิดข้อผิดพลาดในการโหลด Database: {e}")
+        return None
 
+# โหลดฐานข้อมูลหลัก
+df_database = load_github_database(GITHUB_RAW_URL)
 
-# แถบควบคุมด้านข้าง (Sidebar) สำหรับตรวจสอบการเชื่อมต่อข้อมูลหลัก
-st.sidebar.header("⚙️ การเชื่อมต่อฐานข้อมูล GitHub")
-
-target_url = st.sidebar.text_input("GitHub Raw URL ของ Database:", GITHUB_RAW_URL)
-
-# เรียกใช้ฟังก์ชันดึงข้อมูลฐานข้อมูลสินค้า
-df_db, db_error = load_github_database(target_url)
-
-if db_error:
-    st.sidebar.error(f"❌ ไม่สามารถดึงฐานข้อมูลได้: {db_error}")
-else:
-    st.sidebar.success("✅ โหลดฐานข้อมูลสินค้าเรียบร้อยแล้ว (แถวที่ 1 - 92)")
-    if st.sidebar.checkbox("👀 แสดงตัวอย่างตารางอ้างอิง"):
-        st.sidebar.dataframe(df_db[['TYPE OF PRODUCT', 'PAKAGING', 'MATERIAL', 'SALE PRICE']].head(15))
-
-
-# 4. ส่วนรับไฟล์เข้า (File Uploader)
-st.subheader("📥 อัปโหลดไฟล์รายการบันทึก / ใบส่งสินค้าชั่วคราว")
-uploaded_file = st.file_uploader("เลือกไฟล์เอกสาร Excel ที่ต้องการเติมช่องราคาขาย (SALE PRICE)", type=["xlsx", "xls"])
-
-if uploaded_file is not None:
-    try:
-        # อ่านไฟล์ตารางใบส่งของชั่วคราวที่ผู้ใช้โยนเข้ามาในระบบ
-        df_input = pd.read_excel(uploaded_file)
-        st.info("🔄 ระบบกำลังประมวลผลการวิเคราะห์และจับคู่ข้อมูล...")
+if df_database is not None:
+    st.success("✅ เชื่อมต่อฐานข้อมูลสินค้าจาก GitHub สำเร็จ (โหลดข้อมูลแล้ว 92 แถว)")
+    
+    # ดูข้อมูลสแนปชอตของ Database (ซ่อน/แสดงได้)
+    with st.expander("🔍 ดูฐานข้อมูลสินค้าอ้างอิง (Database)"):
+        st.dataframe(df_database)
         
-        # ล้างเศษเว้นวรรคในชื่อหัวคอลัมน์ของไฟล์ที่อัปโหลดเข้ามา
-        df_input.columns = df_input.columns.str.strip()
-        
-        # เงื่อนไขคีย์หลัก 3 ประการในการ Match ค้นหาราคา
-        matching_keys = ['TYPE OF PRODUCT', 'PAKAGING', 'MATERIAL']
-        
-        # ตรวจสอบโครงสร้างคอลัมน์
-        missing_keys = [key for key in matching_keys if key not in df_input.columns]
-        if missing_keys:
-            st.error(f"❌ โครงสร้างไฟล์ไม่ถูกต้อง: ไม่พบคอลัมน์ -> {', '.join(missing_keys)}")
-            st.stop()
+    # --- ส่วนการอัปโหลดไฟล์ใบส่งสินค้าชั่วคราว ---
+    st.markdown("---")
+    st.header("📥 อัปโหลดไฟล์ใบส่งสินค้าชั่วคราว (Delivery Order)")
+    
+    uploaded_file = st.file_uploader("เลือกไฟล์ Excel ของแต่ละเดือนที่ต้องการประมveledผล", type=["xlsx", "xls"])
+    
+    if uploaded_file is not None:
+        try:
+            # อ่านไฟล์ที่ผู้ใช้อัปโหลด
+            df_user = pd.read_excel(uploaded_file)
             
-        # เคลียร์ค่าสตริงเว้นวรรคในคอลัมน์ข้อมูล
-        df_process = df_input.copy()
-        for key in matching_keys:
-            df_process[key] = df_process[key].astype(str).str.strip()
+            # ตรวจสอบคอลัมน์ที่จำเป็นสำหรับการตรวจสอบ
+            required_cols = ['TYPE OF PRODUCT', 'PAKAGING', 'MATERIAL']
+            missing_cols = [col for col in required_cols if col not in df_user.columns]
             
-        if df_db is not None:
-            # ลบคอลัมน์ SALE PRICE เดิมที่มีอยู่ในไฟล์อัปโหลดออกก่อนเพื่อแทนที่ด้วยค่าใหม่
-            if 'SALE PRICE' in df_process.columns:
-                df_process = df_process.drop(columns=['SALE PRICE'])
+            if missing_cols:
+                st.error(f"❌ ไฟล์ที่อัปโหลดไม่มีคอลัมน์ต่อไปนี้: {', '.join(missing_cols)}")
+            else:
+                st.info("กำลังประมวลผลคำนวณ SALE PRICE...")
                 
-            # ยุบรวมข้อมูลฐานข้อมูลป้องกันราคาซ้ำซ้อน (แก้ไขจุดที่วงเล็บไม่ปิดแล้ว)
-            df_db_lookup = df_db[matching_keys + ['SALE PRICE']].drop_duplicates(subset=matching_keys)
-            
-            # ดำเนินการเปรียบเทียบตารางและจับคู่ราคา (Left Merge)
-            df_result = pd.merge(
-                df_process,
-                df_db_lookup,
-                on=matching_keys,
-                how='left'
-            )
-            
-            # ตรวจสอบข้อมูลสถิติ
-            matched_rows = df_result['SALE PRICE'].notna().sum()
-            unmatched_rows = df_result['SALE PRICE'].isna().sum()
-            
-            # แสดงบอร์ดสรุปสถานะ
-            st.success("🎉 ประมวลผลและอัปเดตราคาเสร็จสิ้น!")
-            m_col1, m_col2, m_col3 = st.columns(3)
-            m_col1.metric("จำนวนรายการทั้งหมดในไฟล์", f"{len(df_result)} แถว")
-            m_col2.metric("เติมราคาสำเร็จ (Matched)", f"{matched_rows} แถว")
-            m_col3.metric("ไม่พบราคาในคลัง (Unmatched)", f"{unmatched_rows} แถว")
-            
-            if unmatched_rows > 0:
-                st.warning("⚠️ มีบางรายการที่ไม่พบราคาขายในฐานข้อมูล GitHub กรุณาตรวจสอบตัวสะกดในคอลัมน์เงื่อนไข")
-            
-            # แสดงพรีวิวผลลัพธ์ของไฟล์ใหม่
-            st.subheader("📋 ตัวอย่างตารางข้อมูลของไฟล์ใหม่")
-            st.dataframe(df_result)
-            
-            # แปลงข้อมูลลงสู่หน่วยความจำเพื่อเขียนไฟล์ Excel
-            excel_buffer = io.BytesIO()
-            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                df_result.to_excel(writer, index=False, sheet_name='Monthly_Sale_Prices')
+                # จัดการข้อมูลฝั่งผู้ใช้ให้ไม่มีช่องว่างส่วนเกิน
+                for col in required_cols:
+                    df_user[col] = df_user[col].astype(str).str.strip()
                 
-            # ปุ่มสำหรับดาวน์โหลดไฟล์ผลลัพธ์
-            st.download_button(
-                label="📥 ดาวน์โหลดไฟล์ Excel (เวอร์ชันเติมราคา SALE PRICE แล้ว)",
-                data=excel_buffer.getvalue(),
-                file_name="รายการบันทึกใบส่งสินค้า_อัปเดตราคาขายประจำเดือน.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-            
-    except Exception as err:
-        st.error(f"🚨 เกิดข้อผิดพลาดขณะประมวลผลข้อมูล: {str(err)}")
+                # ตรวจสอบว่าใน Database มีคอลัมน์ 'SALE PRICE' หรือไม่
+                if 'SALE PRICE' not in df_database.columns:
+                    st.error("❌ ไม่พบคอลัมน์ 'SALE PRICE' ในไฟล์ Database บน GitHub")
+                else:
+                    # เตรียมคอลัมน์สำหรับการ Mapping (เลือกเฉพาะ Key และ Target)
+                    df_db_mapping = df_database[['TYPE OF PRODUCT', 'PAKAGING', 'MATERIAL', 'SALE PRICE']].drop_duplicates()
+                    
+                    # ถ้าไฟล์เดิมของผู้ใช้มีคอลัมน์ SALE PRICE อยู่แล้ว ให้ลบออกก่อนเพื่อใส่ค่าที่อัพเดทใหม่เข้าไป
+                    if 'SALE PRICE
