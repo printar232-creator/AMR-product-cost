@@ -2,13 +2,10 @@ import streamlit as st
 import pandas as pd
 import io
 
-st.set_page_config(page_title="AMR Auto Price Matcher", layout="wide")
+st.set_page_config(page_title="AMR Price Matcher", layout="wide")
 
 st.title("📦 AMR Auto Product Price Matching System")
-st.markdown("""
-ระบบจับคู่และกรอกราคาขาย (**SALE PRICE**) อัตโนมัติแบบอ่านเงื่อนไขครบถ้วน 4 มิติ
-(`TYPE OF PRODUCT`, `PACKAGING`, `MATERIAL`, `RATIO`)
-""")
+st.markdown("ระบบจับคู่และกรอกราคาขาย (**SALE PRICE**) อัตโนมัติแบบอ่านเงื่อนไขครบถ้วน 4 มิติ")
 
 st.sidebar.header("📁 อัปโหลดไฟล์ข้อมูล")
 db_file = st.sidebar.file_uploader("1. ไฟล์ฐานข้อมูลต้นทาง", type=["xlsx"])
@@ -41,7 +38,6 @@ if db_file and curr_file:
     ratio_kws = ["RATIO", "อัตราส่วน", "สัดส่วน", "เปอร์เซ็นต์", "MESH"]
     price_kws = ["SALEPRICE", "PRICE", "ราคาขาย", "ราคา"]
 
-    # ✅ ปรับแต่งให้บรรทัดสั้นและกระชับที่สุด (แก้ไขจุดที่หลุดขาดเรียบร้อย 100%)
     db_type_col = find_smart_column(df_db.columns, type_kws)
     db_pkg_col = find_smart_column(df_db.columns, pkg_kws)
     db_mat_col = find_smart_column(df_db.columns, mat_kws)
@@ -51,11 +47,4 @@ if db_file and curr_file:
     curr_type_col = find_smart_column(df_curr.columns, type_kws)
     curr_pkg_col = find_smart_column(df_curr.columns, pkg_kws)
     curr_mat_col = find_smart_column(df_curr.columns, mat_kws)
-    curr_ratio_col = find_smart_column(df_curr.columns, ratio_kws)
-
-    st.subheader("📊 1. ตรวจสอบสถานะการอ่านคอลัมน์ (เงื่อนไข 4 มิติ)")
-    
-    db_ready = db_type_col and db_pkg_col and db_mat_col and db_price_col
-    curr_ready = curr_type_col and curr_pkg_col and curr_mat_col
-
-    col1, col2 = st.columns
+    curr_ratio_col = find_smart
