@@ -42,20 +42,7 @@ if db_file and curr_file:
     ratio_kws = ["RATIO", "อัตราส่วน", "สัดส่วน", "เปอร์เซ็นต์", "MESH"]
     price_kws = ["SALEPRICE", "PRICE", "ราคาขาย", "ราคา"]
 
-    # 1. ระบบทำการสแกนอ่านคอลัมน์จาก Database ต้นทาง
+    # 1. สแกนอ่านคอลัมน์ฝั่ง Database
     db_type_col = find_smart_column(df_db.columns, type_kws)
     db_pkg_col = find_smart_column(df_db.columns, pkg_kws)
-    db_mat_col = find_smart_column(df_db.columns, mat_kws)
-    db_ratio_col = find_smart_column(df_db.columns, ratio_kws)
-    db_price_col = find_smart_column(df_db.columns, price_kws)
-
-    # 2. ระบบทำการสแกนอ่านคอลัมน์จากไฟล์ข้อมูลปัจจุบันที่ต้องการเติมราคา
-    curr_type_col = find_smart_column(df_curr.columns, type_kws)
-    curr_pkg_col = find_smart_column(df_curr.columns, pkg_kws)
-    curr_mat_col = find_smart_column(df_curr.columns, mat_kws)
-    curr_ratio_col = find_smart_column(df_curr.columns, ratio_kws)
-
-    st.subheader("📊 1. ตรวจสอบสถานะการอ่านคอลัมน์ (เงื่อนไข 4 มิติ)")
-    
-    db_ready = db_type_col and db_pkg_col and db_mat_col and db_price_col
-    curr_ready = curr_type_col and curr_pkg_col and curr_mat
+    db_mat_col = find_smart_
