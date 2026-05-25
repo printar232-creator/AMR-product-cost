@@ -44,7 +44,6 @@ if db_file and curr_file:
             st.error("❌ ข้อผิดพลาด: ไฟล์ข้อมูลปัจจุบันไม่มีคอลัมน์ที่จำเป็นสำหรับการ matching 3 คอลัมน์")
         else:
             if st.button("🚀 เริ่มต้นกระบวนการจับคู่ราคา (Process Matching)"):
-                
                 # ลบช่องว่างส่วนเกินหน้า-หลังข้อความ (Data Cleaning) เพื่อความแม่นยำสูง
                 for df in [df_db, df_curr]:
                     for col in matching_criteria:
@@ -53,10 +52,10 @@ if db_file and curr_file:
                 # เคลียร์ข้อมูลซ้ำซ้อนในฐานข้อมูล (ถ้ามี) โดยยึดราคาล่าสุดด้านล่างสุด
                 df_db_clean = df_db.drop_duplicates(subset=matching_criteria, keep='last')
                 
-                # ลบคอลัมน์ SALE PRICE เดิมในไฟล์ปัจจุบันออกก่อน (ถ้ามี) เพื่อไม่ให้เกิดคอลัมน์ซ้ำซ้อนหลังจอยน์
+                # ลบคอลัมน์ SALE PRICE เดิมในไฟล์ปัจจุบันออกก่อน (ถ้ามี)
                 df_curr_clean = df_curr.drop(columns=["SALE PRICE"], errors="ignore")
                 
-                # ทำกระบวนการจับคู่ข้ามไฟล์ด้วย Left Join (เหมือนการทำ VLOOKUP/XLOOKUP แบบ 3 เงื่อนไขพร้อมกัน)
+                # ทำกระบวนการจับคู่ข้ามไฟล์ด้วย Left Join
                 df_result = pd.merge(
                     df_curr_clean,
                     df_db_clean[matching_criteria + ["SALE PRICE"]],
@@ -64,4 +63,38 @@ if db_file and curr_file:
                     how="left"
                 )
                 
-                # หากไม่พบข้อมูล (ค่าเป็น NaN) ให้ระ
+                # หากไม่พบข้อมูล (ค่าเป็น NaN) ให้ระบุเป็น "Not Found"
+                df_result["SALE PRICE"] = df_result["SALE PRICE"].fillna("Not Found")
+                
+                st.success("✅ บันทึกและดึงข้อมูลราคาขายเรียบร้อยแล้ว!")
+                
+                # แสดงผลการวิเคราะห์ข้อมูลสรุป (Metrics Summary)
+                found_count = (df_result["SALE PRICE"] != "Not Found").sum()
+                not_found_count = (df_result["SALE PRICE"] == "Not Found").sum()
+                
+                c1, c2 = st.columns(2)
+                c1.metric("จำนวนสินค้าที่พบราคาและอัปเดตสำเร็จ", f"{found_count} รายการ")
+                c2.metric("จำนวนสินค้าที่ไม่พบข้อมูลในฐานข้อมูล", f"{not_found_count} รายการ", delta_color="inverse")
+                
+                # แสดงตารางผลลัพธ์ที่อัปเดตแล้ว
+                st.markdown("### 📋 ตารางผลลัพธ์ข้อมูลที่อัปเดตแล้ว")
+                st.dataframe(df_result)
+                
+                # แปลงข้อมูล DataFrame กลับเป็นไฟล์ Excel สำหรับดาวน์โหลด
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df_result.to_excel(writer, index=False, sheet_name='Updated_Price')
+                processed_data = output.getvalue()
+                
+                # ปุ่มดาวน์โหลดไฟล์
+                st.download_button(
+                    label="📥 ดาวน์โหลดไฟล์ผลลัพธ์เวอร์ชันอัปเดต (Excel)",
+                    data=processed_data,
+                    file_name="updated_product_sales_price.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+                
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดทางเทคนิคระหว่างประมวลผลไฟล์: {e}")
+else:
+    st.info("💡 คำแนะนำ: โปรดอัปโหลดไฟล์ทั้ง 2 ไฟล์ที่แถบเมนูด้านซ้ายเพื่อเริ่มต้นระบบงาน")
