@@ -88,5 +88,47 @@ if uploaded_file is not None:
             if 'SALE PRICE' in df_process.columns:
                 df_process = df_process.drop(columns=['SALE PRICE'])
                 
-            # ยุบรวมข้อมูลฐานข้อมูลป้องกันราคาซ้ำซ้อน
-            df_db_lookup = df_db[matching_keys + ['SALE PRICE']].drop_duplicates(subset=matching_keys
+            # ยุบรวมข้อมูลฐานข้อมูลป้องกันราคาซ้ำซ้อน (แก้ไขจุดที่วงเล็บไม่ปิดแล้ว)
+            df_db_lookup = df_db[matching_keys + ['SALE PRICE']].drop_duplicates(subset=matching_keys)
+            
+            # ดำเนินการเปรียบเทียบตารางและจับคู่ราคา (Left Merge)
+            df_result = pd.merge(
+                df_process,
+                df_db_lookup,
+                on=matching_keys,
+                how='left'
+            )
+            
+            # ตรวจสอบข้อมูลสถิติ
+            matched_rows = df_result['SALE PRICE'].notna().sum()
+            unmatched_rows = df_result['SALE PRICE'].isna().sum()
+            
+            # แสดงบอร์ดสรุปสถานะ
+            st.success("🎉 ประมวลผลและอัปเดตราคาเสร็จสิ้น!")
+            m_col1, m_col2, m_col3 = st.columns(3)
+            m_col1.metric("จำนวนรายการทั้งหมดในไฟล์", f"{len(df_result)} แถว")
+            m_col2.metric("เติมราคาสำเร็จ (Matched)", f"{matched_rows} แถว")
+            m_col3.metric("ไม่พบราคาในคลัง (Unmatched)", f"{unmatched_rows} แถว")
+            
+            if unmatched_rows > 0:
+                st.warning("⚠️ มีบางรายการที่ไม่พบราคาขายในฐานข้อมูล GitHub กรุณาตรวจสอบตัวสะกดในคอลัมน์เงื่อนไข")
+            
+            # แสดงพรีวิวผลลัพธ์ของไฟล์ใหม่
+            st.subheader("📋 ตัวอย่างตารางข้อมูลของไฟล์ใหม่")
+            st.dataframe(df_result)
+            
+            # แปลงข้อมูลลงสู่หน่วยความจำเพื่อเขียนไฟล์ Excel
+            excel_buffer = io.BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                df_result.to_excel(writer, index=False, sheet_name='Monthly_Sale_Prices')
+                
+            # ปุ่มสำหรับดาวน์โหลดไฟล์ผลลัพธ์
+            st.download_button(
+                label="📥 ดาวน์โหลดไฟล์ Excel (เวอร์ชันเติมราคา SALE PRICE แล้ว)",
+                data=excel_buffer.getvalue(),
+                file_name="รายการบันทึกใบส่งสินค้า_อัปเดตราคาขายประจำเดือน.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            
+    except Exception as err:
+        st.error(f"🚨 เกิดข้อผิดพลาดขณะประมวลผลข้อมูล: {str(err)}")
