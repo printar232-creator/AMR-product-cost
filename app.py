@@ -57,49 +57,5 @@ if db_file and curr_file:
 
     st.subheader("📊 1. ตรวจสอบสถานะการอ่านคอลัมน์ (เงื่อนไข 4 มิติ)")
     
-    # ตรวจเช็คความพร้อมของการอ่านข้อมูล
     db_ready = db_type_col and db_pkg_col and db_mat_col and db_price_col
-    curr_ready = curr_type_col and curr_pkg_col and curr_mat_col
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f"🗃️ **ไฟล์ฐานข้อมูล (Database) มีทั้งหมด: {len(df_db)} แถว**")
-        if db_ready:
-            st.success("🔍 ระบบตรวจสอบและอ่านคอลัมน์ฝั่ง Database สำเร็จ")
-            st.text(f"- อ่าน TYPE OF PRODUCT จาก: '{db_type_col}'")
-            st.text(f"- อ่าน PACKAGING จาก: '{db_pkg_col}'")
-            st.text(f"- อ่าน MATERIAL จาก: '{db_mat_col}'")
-            st.text(f"- อ่าน RATIO จาก: '{db_ratio_col if db_ratio_col else 'ไม่พบ (จะใช้ระบจับคู่เสมือน)'}'")
-            st.text(f"- อ่านดึง SALE PRICE จาก: '{db_price_col}'")
-        else:
-            st.error("❌ ฝั่ง Database: ตรวจหาคอลัมน์หลักบางคอลัมน์ไม่เจอ")
-        st.dataframe(df_db)
-        
-    with col2:
-        st.markdown(f"📄 **ไฟล์ปัจจุบันที่ต้องการเติมราคา มีทั้งหมด: {len(df_curr)} แถว**")
-        if curr_ready:
-            st.success("🔍 ระบบตรวจสอบและอ่านคอลัมน์ฝั่ง ไฟล์ปัจจุบัน สำเร็จ")
-            st.text(f"- อ่าน TYPE OF PRODUCT จาก: '{curr_type_col}'")
-            st.text(f"- อ่าน PACKAGING จาก: '{curr_pkg_col}'")
-            st.text(f"- อ่าน MATERIAL จาก: '{curr_mat_col}'")
-            st.text(f"- อ่าน RATIO จาก: '{curr_ratio_col if curr_ratio_col else 'ไม่พบ'}'")
-        else:
-            st.error("❌ ฝั่ง ไฟล์ปัจจุบัน: ตรวจหาคอลัมน์หลักบางคอลัมน์ไม่เจอ")
-        st.dataframe(df_curr)
-
-    if not db_ready or not curr_ready:
-        st.warning("⚠️ โปรดตรวจสอบคอลัมน์ของทั้ง 2 ไฟล์ให้มีฟิลด์ข้อมูลให้ครบถ้วนก่อนรันระบบครับ")
-    else:
-        st.markdown("---")
-        if st.button("🚀 เริ่มทำการอ่านค่า 4 มิติ และกรอกราคาขาย (Run Match & Populate)"):
-            
-            db_working = df_db.copy()
-            df_final_output = df_curr.copy()
-            
-            # เคลียร์คอลัมน์ราคาเดิมที่มีอยู่ในไฟล์ปัจจุบันออกก่อน เพื่อรอใส่ค่าใหม่ที่ดึงมา
-            cols_to_drop = []
-            for c in df_final_output.columns:
-                c_upper = str(c).strip().upper().replace(" ", "")
-                if c_upper in ["SALEPRICE", "PRICE", "ราคาขาย", "ราคา"]:
-                    cols_to_drop.append(c)
-            df_final_output = df_final_output.drop(columns
+    curr_ready = curr_type_col and curr_pkg_col and curr_mat
