@@ -1,98 +1,84 @@
 import streamlit as st
 import pandas as pd
+import os
 
-# ตั้งค่าหน้าเว็บ Streamlit
-st.set_page_config(page_title="AMR Product Price Matching Tool", layout="wide")
+st.set_page_config(page_title="AMR Product Pricing Matcher", layout="wide")
 
-st.title("📦 ระบบเติมราคาใบส่งสินค้าชั่วคราวอัตโนมัติ (AMR)")
-st.write("อัปโหลดไฟล์ใบส่งสินค้าและไฟล์ Database เพื่อคำนวณและเติมช่อง SALE PRICE")
+st.title("📦 ระบบบันทึกใบส่งสินค้าชั่วคราว & คำนวณราคาขาย (AMR)")
+st.write("อัปโหลดไฟล์รายการส่งสินค้าชั่วคราวเพื่อเติมช่อง **SALE PRICE** โดยอัตโนมัติจากฐานข้อมูลราคา")
 
-st.divider()
+# 1. ตั้งชื่อไฟล์ฐานข้อมูลที่อยู่ใน GitHub Repository เดียวกัน
+DB_FILENAME = "database for product cost AMR.xlsx"
 
-# สร้าง 2 คอลัมน์สำหรับอัปโหลดไฟล์
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("1. ไฟล์ใบส่งสินค้าชั่วคราว")
-    delivery_file = st.file_uploader("เลือกไฟล์ใบส่งสินค้า (Excel หรือ CSV)", type=["xlsx", "csv"], key="delivery")
-
-with col2:
-    st.subheader("2. ไฟล์ Database สำหรับราคาสินค้า")
-    db_file = st.file_uploader("เลือกไฟล์ Database for product cost AMR", type=["xlsx", "csv"], key="database")
-
-# เมื่ออัปโหลดครบทั้งสองไฟล์
-if delivery_file and db_file:
+@st.cache_data
+def load_database(file_path):
+    if not os.path.exists(file_path):
+        return None
     try:
-        # --- อ่านไฟล์ใบส่งสินค้า ---
-        if delivery_file.name.endswith('.xlsx'):
-            df_delivery = pd.read_excel(delivery_file)
-        else:
-            df_delivery = pd.read_csv(delivery_file)
-            
-        # --- อ่านไฟล์ Database ---
-        if db_file.name.endswith('.xlsx'):
-            df_db = pd.read_excel(db_file)
-        else:
-            df_db = pd.read_csv(db_file)
-            
-        st.success("โหลดข้อมูลสำเร็จ! กำลังตรวจสอบคอลัมน์...")
-
-        # กำหนดชื่อคอลัมน์ที่ต้องใช้ในการ Match
-        match_cols = ['TYPE OF PRODUCT', 'PACKAGING', 'MATERIAL']
-        
-        # ตรวจสอบว่าคอลัมน์ที่จำเป็นมีครบหรือไม่
-        missing_delivery = [col for col in match_cols if col not in df_delivery.columns]
-        missing_db = [col for col in match_cols + ['SALE PRICE'] if col not in df_db.columns]
-        
-        if missing_delivery:
-            st.error(f"❌ ไฟล์ใบส่งสินค้าขาดคอลัมน์: {', '.join(missing_delivery)}")
-        elif missing_db:
-            st.error(f"❌ ไฟล์ Database ขาดคอลัมน์: {', '.join(missing_db)}")
-        else:
-            # ลบช่องว่าง (Whitespace) ของข้อความในคอลัมน์หลักเพื่อป้องกันการ Match ไม่เจอจากเคสพิมพ์เกิน
-            for col in match_cols:
-                df_delivery[col] = df_delivery[col].astype(str).str.strip()
-                df_db[col] = df_db[col].astype(str).str.strip()
-
-            # สรุปข้อมูลราคาก่อนเพื่อป้องกันกรณีใน Database มีรายการซ้ำ (ดึงราคาสุดท้ายมาใช้)
-            df_db_clean = df_db.drop_duplicates(subset=match_cols, keep='last')
-            
-            # ทำการดึงเฉพาะคอลัมน์เงื่อนไขและราคาจาก Database มาเตรียมรอ Merge
-            df_db_subset = df_db_clean[match_cols + ['SALE PRICE']]
-            
-            # เคลียร์ช่อง SALE PRICE เดิมในไฟล์ใบส่งสินค้าออกก่อน (ถ้ามีอยู่แล้ว) เพื่อป้องกันคอลัมน์ซ้ำซ้อน
-            if 'SALE PRICE' in df_delivery.columns:
-                df_delivery = df_delivery.drop(columns=['SALE PRICE'])
-                
-            # --- ประมวลผลดึงราคา (Merge/VLOOKUP Multi-criteria) ---
-            df_result = pd.merge(df_delivery, df_db_subset, on=match_cols, how='left')
-            
-            st.subheader("📊 ตัวอย่างข้อมูลที่ประมวลผลเสร็จแล้ว")
-            st.dataframe(df_result.head(10))
-            
-            # นับจำนวนรายการที่หาราคาไม่เจอ (เป็นค่าว่างหรือ NaN)
-            not_found_count = df_result['SALE PRICE'].isna().sum()
-            if not_found_count > 0:
-                st.warning(f"⚠️ มีรายการที่แมตช์ราคาไม่พบทั้งหมด {not_found_count} แถว (กรุณาตรวจสอบการสะกดคำในไฟล์)")
-            else:
-                st.success("✅ สามารถจับคู่ราคาได้ครบทุกรายการร้อยละ 100")
-                
-            # --- เตรียมสร้างไฟล์สำหรับดาวน์โหลด ---
-            # แปลงไฟล์เป็น Excel ในหน่วยความจำ (Memory) ไม่บันทึกลงดิสก์ของเซิร์ฟเวอร์
-            import io
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                df_result.to_excel(writer, index=False, sheet_name='Updated_Sales')
-            
-            st.divider()
-            
-            # ปุ่มดาวน์โหลดไฟล์
-            st.download_button(
-                label="📥 ดาวน์โหลดไฟล์ใบส่งสินค้าที่เติมราคาแล้ว (.xlsx)",
-                data=buffer.getvalue(),
-                file_name="updated_delivery_with_prices.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-            
+        # อ่านไฟล์ Excel 
+        df_db = pd.read_excel(file_path)
+        # ปรับชื่อคอลัมน์เป็นตัวพิมพ์ใหญ่และตัดช่องว่างเพื่อป้องกันความผิดพลาดในการค้นหา
+        df_db.columns = df_db.columns.str.strip().str.upper()
+        return df_db
     except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการประมวลผล: {e}")
+        st.error(f"เกิดข้อผิดพลาดในการอ่านไฟล์ฐานข้อมูล: {e}")
+        return None
+
+df_db = load_database(DB_FILENAME)
+
+if df_db is None:
+    st.warning(f"⚠️ ไม่พบไฟล์ฐานข้อมูล `{DB_FILENAME}` ในระบบ กรุณาตรวจสอบว่าได้อัปโหลดไฟล์นี้ไว้ใน GitHub Repository เดียวกันแล้ว")
+else:
+    st.success(f"✅ โหลดฐานข้อมูลสินค้า `{DB_FILENAME}` เรียบร้อยแล้ว")
+    
+    # แสดงตัวอย่างข้อมูลในฐานข้อมูล (ซ่อนไว้ในแถบเปิด-ปิด)
+    with st.expander("ดูข้อมูลฐานข้อมูลราคาต้นทุน/ราคาขาย (Database)"):
+        st.dataframe(df_db.head())
+
+st.markdown("---")
+
+# 2. ส่วนสำหรับการอัปโหลดไฟล์ใบส่งสินค้าชั่วคราว
+uploaded_file = st.file_uploader("📂 ลากและวาง หรือเลือกไฟล์ใบส่งสินค้าชั่วคราวประจำเดือน (.xlsx, .csv)", type=["xlsx", "csv"])
+
+if uploaded_file is not None:
+    try:
+        # ตรวจสอบชนิดไฟล์และเปิดอ่านข้อมูล
+        if uploaded_file.name.endswith('.csv'):
+            df_input = pd.read_csv(uploaded_file)
+        else:
+            df_input = pd.read_excel(uploaded_file)
+            
+        st.subheader("📋 ตัวอย่างข้อมูลที่อัปโหลดเข้ามา")
+        st.dataframe(df_input.head())
+        
+        # คัดลอกข้อมูลมาปรับโครงสร้างหัวตารางเป็นตัวพิมพ์ใหญ่เพื่อใช้ประมวลผลภายใน
+        df_proc = df_input.copy()
+        df_proc.columns = df_proc.columns.str.strip().str.upper()
+        
+        # ตรวจสอบคอลัมน์สำคัญที่ต้องมีในไฟล์ที่ผู้ใช้อัปโหลดเข้ามา
+        required_cols = ["TYPE OF PRODUCT", "PAKAGING", "MATERIAL"]
+        missing_cols = [col for col in required_cols if col not in df_proc.columns]
+        
+        if missing_cols:
+            st.error(f"❌ ไม่พบคอลัมน์ที่จำเป็นในไฟล์ที่นำเข้า: {', '.join(missing_cols)} (กรุณาตรวจสอบการสะกดชื่อคอลัมน์ในไฟล์ให้ถูกต้อง)")
+        else:
+            if st.button("🚀 เริ่มประมวลผลจับคู่ราคา SALE PRICE"):
+                with st.spinner("กำลังดึงข้อมูลและแมตช์ราคาขาย..."):
+                    
+                    # คอลัมน์ที่ต้องใช้รวบรวมจากฝั่ง Database
+                    db_cols = ["TYPE OF PRODUCT", "PAKAGING", "MATERIAL", "SALE PRICE"]
+                    
+                    if not all(col in df_db.columns for col in db_cols):
+                        st.error("❌ โครงสร้างตารางในไฟล์ฐานข้อมูลกลางไม่ถูกต้อง! ต้องมีคอลัมน์ชื่อ: TYPE OF PRODUCT, PAKAGING, MATERIAL, SALE PRICE")
+                    else:
+                        # เตรียมข้อมูลฝั่งฐานข้อมูล (ดึงเฉพาะที่จำเป็น และลบรายการซ้ำซ้อนออก)
+                        df_db_clean = df_db[db_cols].drop_duplicates(subset=["TYPE OF PRODUCT", "PAKAGING", "MATERIAL"])
+                        
+                        # ล้างค่าช่องว่าง (Trailing spaces) ของตัวอักษรเพื่อไม่ให้เกิดปัญหาแมตช์ไม่เจอจากวรรคเกิน
+                        for col in ["TYPE OF PRODUCT", "PAKAGING", "MATERIAL"]:
+                            df_proc[col] = df_proc[col].astype(str).str.strip()
+                            df_db_clean[col] = df_db_clean[col].astype(str).str.strip()
+                        
+                        # ลบคอลัมน์ SALE PRICE เดิมในไฟล์ที่ส่งเข้ามา (ถ้ามีอยู่แล้วแบบว่างๆ) เพื่อป้องกันคอลัมน์ทับซ้อนกัน
+                        if "SALE PRICE" in df_proc.columns:
+                            df_proc = df_proc.drop(columns=["SALE PRICE"])
