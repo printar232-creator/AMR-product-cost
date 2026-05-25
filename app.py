@@ -5,9 +5,9 @@ import io
 # ตั้งค่าหน้าตาของโปรแกรม Streamlit
 st.set_page_config(page_title="AMR Flexible Data Matcher", layout="wide")
 
-st.title("📦 AMR Product Data Matching System (Flexible Columns)")
+st.title("📦 AMR Product Data Matching System (Fixed Unnamed Columns)")
 st.markdown("""
-ระบบดึงข้อมูลสินค้าอัจฉริยะ **หมดปัญหาเรื่องชื่อหัวคอลัมน์ไม่ตรงกัน** คุณสามารถเลือกจับคู่คอลัมน์ระหว่าง *ไฟล์ปัจจุบัน* และ *ไฟล์ฐานข้อมูล (Database)* ได้ด้วยตนเองผ่านเมนูด้านล่าง
+ระบบดึงข้อมูลสินค้าอัจฉริยะ **เวอร์ชันแก้ไขปัญหาคอลัมน์ว่าง/คอลัมน์ซ้ำ (Unnamed Error Fixed)** คุณสามารถเลือกจับคู่คอลัมน์ระหว่าง *ไฟล์ปัจจุบัน* และ *ไฟล์ฐานข้อมูล (Database)* ได้ด้วยตนเองผ่านเมนูด้านล่าง
 """)
 
 # แถบเมนูด้านซ้ายสำหรับอัปโหลดไฟล์
@@ -17,16 +17,40 @@ curr_file = st.sidebar.file_uploader("2. ไฟล์ข้อมูลปัจ
 
 if db_file and curr_file:
     try:
-        # อ่านข้อมูลจากไฟล์ Excel
+        # 1. อ่านข้อมูลจากไฟล์ Excel
         df_db = pd.read_excel(db_file)
         df_curr = pd.read_excel(curr_file)
         
-        st.subheader("📊 1. ตรวจสอบข้อมูลต้นฉบับ")
+        # ฟังก์ชันพิเศษ: จัดการลบหรือเปลี่ยนชื่อคอลัมน์ที่ซ้ำ/คอลัมน์ว่าง (เช่น Unnamed) เพื่อป้องกัน Error
+        def clean_dataframe_columns(df):
+            # ลบคอลัมน์ที่เป็นค่าว่างทั้งหมดออกไปก่อน (คอลัมน์ที่ชื่อขึ้นต้นด้วย Unnamed และไม่มีข้อมูล)
+            cols_to_drop = [col for col in df.columns if str(col).startswith('Unnamed:') and df[col].isna().all()]
+            df = df.drop(columns=cols_to_drop, errors='ignore')
+            
+            # ถ้ายังมีคอลัมน์ชื่อซ้ำกันอยู่ (รวมถึง Unnamed ที่อาจมีข้อมูลเหลืออยู่) จะทำการรันตัวเลขต่อท้ายให้ชื่อไม่ซ้ำกัน
+            new_cols = []
+            counts = {}
+            for col in df.columns:
+                col_str = str(col)
+                if col_str in counts:
+                    counts[col_str] += 1
+                    new_cols.append(f"{col_str}_{counts[col_str]}")
+                else:
+                    counts[col_str] = 0
+                    new_cols.append(col_str)
+            df.columns = new_cols
+            return df
+
+        # ทำความสะอาดหัวคอลัมน์ของทั้งสองไฟล์ก่อนนำไปแสดงผลและประมวลผล
+        df_db = clean_dataframe_columns(df_db)
+        df_curr = clean_dataframe_columns(df_curr)
+        
+        st.subheader("📊 1. ตรวจสอบข้อมูลต้นฉบับ (หลังเคลียร์คอลัมน์ว่าง)")
         col1, col2 = st.columns(2)
         
         with col1:
             st.markdown(f"🗃️ **ไฟล์ฐานข้อมูลต้นทาง (Database): {len(df_db)} แถว**")
-            st.dataframe(df_db.head(10)) # แสดง 10 แถวแรกให้เห็นโครงสร้าง
+            st.dataframe(df_db.head(10))
         with col2:
             st.markdown(f"📄 **ไฟล์ข้อมูลปัจจุบันที่ต้องการกรอก: {len(df_curr)} แถว**")
             st.dataframe(df_curr.head(10))
@@ -56,11 +80,10 @@ if db_file and curr_file:
         # ปุ่มเริ่มทำงาน
         if st.button("🚀 เริ่มต้นดึงข้อมูลตามโครงสร้างที่เลือก (Process Matching)"):
             
-            # คัดลอกข้อมูลมาประมวลผลเพื่อไม่ให้กระทบตัวแปรเดิม
             db_working = df_db.copy()
             curr_working = df_curr.copy()
             
-            # แปลงข้อมูลในคอลัมน์ที่เลือกให้เป็น String และตัดเว้นวรรคเพื่อความแม่นยำในการเทียบ
+            # แปลงข้อมูลในคอลัมน์ที่เลือกให้เป็น String และตัดเว้นวรรค
             db_working[db_col_1] = db_working[db_col_1].astype(str).str.strip()
             db_working[db_col_2] = db_working[db_col_2].astype(str).str.strip()
             db_working[db_col_3] = db_working[db_col_3].astype(str).str.strip()
@@ -70,7 +93,6 @@ if db_file and curr_file:
             curr_working[curr_col_3] = curr_working[curr_col_3].astype(str).str.strip()
             
             # เปลี่ยนชื่อคอลัมน์เปรียบเทียบในฝั่ง Database ให้ชั่วคราวเพื่อให้ชื่อตรงกับไฟล์ปัจจุบันตอนทำ Merge
-            # และป้องกันปัญหาคอลัมน์ชื่อซ้ำซ้อน
             rename_dict = {
                 db_col_1: curr_col_1,
                 db_col_2: curr_col_2,
@@ -92,10 +114,10 @@ if db_file and curr_file:
                 curr_working_clean,
                 db_working,
                 on=join_keys,
-                how="right"  # กวาดข้อมูลฝั่ง Database มาครบทุก Row แน่นอน
+                how="right"
             )
             
-            # จัดตำแหน่งให้คอลัมน์เงื่อนไขหลักไปอยู่ด้านหน้าสุดเพื่อความอ่านง่าย
+            # จัดตำแหน่งให้คอลัมน์เงื่อนไขหลักไปอยู่ด้านหน้าสุด
             final_cols_order = join_keys + [col for col in df_result.columns if col not in join_keys]
             df_result = df_result[final_cols_order]
             
