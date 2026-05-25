@@ -4,16 +4,15 @@ import io
 
 st.set_page_config(page_title="AMR Auto Price Matcher", layout="wide")
 
-st.title("📦 AMR Auto Product Price Matching System (Strict 4-Criteria Reading)")
+st.title("📦 AMR Auto Product Price Matching System")
 st.markdown("""
-ระบบจับคู่และกรอกราคาขาย (**SALE PRICE**) อัตโนมัติแบบอ่านเงื่อนไขครบถ้วน
-- **ลอจิกการทำงาน:** ระบบจะอ่านและตรวจสอบข้อมูลจากทั้ง 4 คอลัมน์หลักก่อน (`TYPE OF PRODUCT`, `PACKAGING`, `MATERIAL`, `RATIO`) 
-- แล้วนำไปเทียบกับฐานข้อมูลต้นทางอย่างแม่นยำ ก่อนจะนำราคาขายมาเติมให้ในช่องสุดท้าย โดยไม่กระทบกับข้อมูลเดิมครับ
+ระบบจับคู่และกรอกราคาขาย (**SALE PRICE**) อัตโนมัติแบบอ่านเงื่อนไขครบถ้วน 4 มิติ
+(`TYPE OF PRODUCT`, `PACKAGING`, `MATERIAL`, `RATIO`)
 """)
 
 st.sidebar.header("📁 อัปโหลดไฟล์ข้อมูล")
-db_file = st.sidebar.file_uploader("1. ไฟล์ฐานข้อมูลต้นทาง (database for product cost AMR.xlsx)", type=["xlsx"])
-curr_file = st.sidebar.file_uploader("2. ไฟล์ข้อมูลปัจจุบันที่ต้องการเติมราคา", type=["xlsx"])
+db_file = st.sidebar.file_uploader("1. ไฟล์ฐานข้อมูลต้นทาง", type=["xlsx"])
+curr_file = st.sidebar.file_uploader("2. ไฟล์ข้อมูลปัจจุบัน", type=["xlsx"])
 
 def find_smart_column(df_columns, target_keywords):
     for col in df_columns:
@@ -42,6 +41,9 @@ if db_file and curr_file:
     ratio_kws = ["RATIO", "อัตราส่วน", "สัดส่วน", "เปอร์เซ็นต์", "MESH"]
     price_kws = ["SALEPRICE", "PRICE", "ราคาขาย", "ราคา"]
 
-    # 1. สแกนอ่านคอลัมน์ฝั่ง Database (แก้ไขจุดที่หลุดขาดให้ถูกต้อง 100% แล้ว)
+    # ✅ ปรับบรรทัดให้สั้นลงเป็นพิเศษ ป้องกันปัญหาโค้ดขาดตอนคัดลอกวาง
     db_type_col = find_smart_column(df_db.columns, type_kws)
-    db_pkg_col = find_smart_column(df_
+    db_pkg_col = find_smart_column(df_db.columns, pkg_kws)
+    db_mat_col = find_smart_column(df_db.columns, mat_kws)
+    db_ratio_col = find_smart_column(df_db.columns, ratio_kws)
+    db_price
