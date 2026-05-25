@@ -24,17 +24,14 @@ def find_smart_column(df_columns, target_keywords):
     return None
 
 if db_file and curr_file:
-    # อ่านไฟล์ทั้งหมดเข้ามาทำงาน (ไม่มีการจำกัดแถว)
     df_db = pd.read_excel(db_file)
     df_curr = pd.read_excel(curr_file)
     
-    # กำหนด Keyword สำหรับค้นหาหัวคอลัมน์อัตโนมัติ
     type_kws = ["TYPEOFPRODUCT", "PRODUCTTYPE", "PRODUCT", "ประเภทสินค้า", "ชนิดสินค้า"]
     pkg_kws = ["PACKAGING", "PKG", "PACKAGE", "บรรจุภัณฑ์", "แพ็คเกจ", "ถุง"]
     mat_kws = ["MATERIAL", "MAT", "GRADE", "วัสดุ", "เกรด"]
     price_kws = ["SALEPRICE", "PRICE", "ราคาขาย", "ราคา"]
 
-    # จับคู่คอลัมน์อัตโนมัติ
     db_type_col = find_smart_column(df_db.columns, type_kws)
     db_pkg_col = find_smart_column(df_db.columns, pkg_kws)
     db_mat_col = find_smart_column(df_db.columns, mat_kws)
@@ -56,7 +53,6 @@ if db_file and curr_file:
             st.success(f"🔍 พบคอลัมน์: ประเภท=`{db_type_col}`, บรรจุภัณฑ์=`{db_pkg_col}`, วัสดุ=`{db_mat_col}`, ราคา=`{db_price_col}`")
         else:
             st.error("❌ ฝั่ง Database: ตรวจหาคอลัมน์หลักบางคอลัมน์ไม่เจอ")
-        # แสดงตารางข้อมูลทั้งหมดของ Database (ไม่มี .head())
         st.dataframe(df_db)
         
     with col2:
@@ -65,7 +61,6 @@ if db_file and curr_file:
             st.success(f"🔍 พบคอลัมน์: ประเภท=`{curr_type_col}`, บรรจุภัณฑ์=`{curr_pkg_col}`, วัสดุ=`{curr_mat_col}`")
         else:
             st.error("❌ ฝั่ง ไฟล์ปัจจุบัน: ตรวจหาคอลัมน์หลักบางคอลัมน์ไม่เจอ")
-        # แสดงตารางข้อมูลทั้งหมดของ ไฟล์ปัจจุบัน (ไม่มี .head())
         st.dataframe(df_curr)
 
     if not db_ready or not curr_ready:
@@ -77,16 +72,11 @@ if db_file and curr_file:
             db_working = df_db.copy()
             curr_working = df_curr.copy()
             
-            # ลบช่องว่างหน้า-หลังข้อความของคอลัมน์หลักเพื่อความแม่นยำในการ Match
-            db_working[db_type_col] = db_working[db_type_col].astype(str).str.strip()
-            db_working[db_pkg_col] = db_working[db_pkg_col].astype(str).str.strip()
-            db_working[db_mat_col] = db_working[db_mat_col].astype(str).str.strip()
+            for col in [db_type_col, db_pkg_col, db_mat_col]:
+                db_working[col] = db_working[col].astype(str).str.strip()
+            for col in [curr_type_col, curr_pkg_col, curr_mat_col]:
+                curr_working[col] = curr_working[col].astype(str).str.strip()
             
-            curr_working[curr_type_col] = curr_working[curr_type_col].astype(str).str.strip()
-            curr_working[curr_pkg_col] = curr_working[curr_pkg_col].astype(str).str.strip()
-            curr_working[curr_mat_col] = curr_working[curr_mat_col].astype(str).str.strip()
-            
-            # เปลี่ยนชื่อคอลัมน์ฝั่ง Database ให้ตรงกับคอลัมน์ฝั่งไฟล์ปัจจุบันชั่วคราวเพื่อใช้เป็นตัวเชื่อม (Key)
             rename_dict = {
                 db_type_col: curr_type_col,
                 db_pkg_col: curr_pkg_col,
@@ -97,13 +87,11 @@ if db_file and curr_file:
             
             join_keys = [curr_type_col, curr_pkg_col, curr_mat_col]
             
-            # ดึงเฉพาะคีย์หลักและคอลัมน์ราคาขายจากฐานข้อมูลมาใช้งาน (ไม่มีการตัดแถวซ้ำออก เพื่อรักษารายการทั้งหมดไว้)
-            df_db_prices = db_working[join_keys + ["SALE PRICE"]]
+            # ป้องกันปัญหาข้อมูลใน Database ซ้ำซ้อนจนตารางขยายตัว โดยเลือกเก็บแถวล่าสุดไว้ใช้งานในการดึงราคา
+            df_db_prices = db_working[join_keys + ["SALE PRICE"]].drop_duplicates(subset=join_keys, keep='last')
             
-            # ลบคอลัมน์ราคาเดิมในไฟล์ปัจจุบันออกก่อน (ถ้ามี) เพื่อนำราคาใหม่จากฐานข้อมูลไปใส่
             curr_working_clean = curr_working.drop(columns=["SALE PRICE"], errors="ignore")
             
-            # ทำการรวมไฟล์แบบ Left Join โดยยึดแถวทั้งหมดของไฟล์ปัจจุบันเป็นหลัก (จำนวนแถวจะมาครบเท่าเดิม 100%)
             df_result = pd.merge(
                 curr_working_clean,
                 df_db_prices,
@@ -111,12 +99,13 @@ if db_file and curr_file:
                 how="left"
             )
             
-            # กรณีที่จับคู่ไม่เจอ ให้ขึ้นตัวอักษร "Not Found"แทนช่องว่าง
             df_result["SALE PRICE"] = df_result["SALE PRICE"].fillna("Not Found")
             
-            found_count = int((df_result["SALE PRICE"] != "Not Found").sum())
-            not_found_count = int((df_result["SALE PRICE"] == "Not Found").sum())
+            # ปรับเปลี่ยนลอจิกการนับจำนวนให้ปลอดภัยและแม่นยำ ไม่พ่น Error เรื่องการ Sum อีกต่อไป
+            is_found_mask = df_result["SALE PRICE"].astype(str) != "Not Found"
+            found_count = int(is_found_mask.values.sum())
             total_rows = len(df_result)
+            not_found_count = total_rows - found_count
             
             st.success("✅ ประมวลผลสำเร็จ! ดึงข้อมูลครบทุกแถวเรียบร้อยแล้ว")
             st.info(f"📋 จำนวนแถวผลลัพธ์ทั้งหมด: {total_rows} แถว | เจอราคา: {found_count} รายการ | ไม่เจอราคา: {not_found_count} รายการ")
@@ -124,7 +113,6 @@ if db_file and curr_file:
             st.markdown("### 📋 2. ตารางผลลัพธ์ข้อมูลเวอร์ชันอัปเดต (ครบทุกแถว)")
             st.dataframe(df_result)
             
-            # แปลงข้อมูลกลับเป็นไฟล์ Excel สำหรับดาวน์โหลด
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df_result.to_excel(writer, index=False, sheet_name='Updated_Sale_Price')
