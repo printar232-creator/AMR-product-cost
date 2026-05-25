@@ -56,4 +56,19 @@ if db_file and curr_file:
                 df_db[col] = df_db[col].astype(str).str.strip()
                 df_curr[col] = df_curr[col].astype(str).str.strip()
             
-            df_db_prices = df_db[required_keys + ["SALE PRICE"]].drop_duplicates(subset=required_keys, keep='last
+            df_db_prices = df_db[required_keys + ["SALE PRICE"]].drop_duplicates(subset=required_keys, keep='last')
+            
+            df_curr_clean = df_curr.drop(columns=["SALE PRICE"], errors="ignore")
+            
+            df_result = pd.merge(
+                df_curr_clean,
+                df_db_prices,
+                on=required_keys,
+                how="left"
+            )
+            
+            df_result["SALE PRICE"] = df_result["SALE PRICE"].fillna("Not Found")
+            
+            found_count = int((df_result["SALE PRICE"] != "Not Found").sum())
+            not_found_count = int((df_result["SALE PRICE"] == "Not Found").sum())
+            total_rows = len(df_result)
