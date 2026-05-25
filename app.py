@@ -48,6 +48,19 @@ if db_file and curr_file:
     db_ratio_col = find_smart_column(df_db.columns, ratio_kws)
     db_price_col = find_smart_column(df_db.columns, price_kws)
 
+    # ✅ แก้ไขบรรทัดที่หลุดขาดและจัดโค้ดให้ครบถ้วนถูกต้อง
     curr_type_col = find_smart_column(df_curr.columns, type_kws)
     curr_pkg_col = find_smart_column(df_curr.columns, pkg_kws)
-    curr_mat_col = find_smart_column(df_curr.columns,
+    curr_mat_col = find_smart_column(df_curr.columns, mat_kws)
+    curr_ratio_col = find_smart_column(df_curr.columns, ratio_kws)
+
+    st.subheader("📊 1. ตรวจสอบไฟล์ที่อัปโหลด (ระบบตรวจจับคอลัมน์อัตโนมัติ 4 เงื่อนไข)")
+    
+    db_ready = db_type_col and db_pkg_col and db_mat_col and db_ratio_col and db_price_col
+    curr_ready = curr_type_col and curr_pkg_col and curr_mat_col and curr_ratio_col
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(f"🗃️ **ไฟล์ฐานข้อมูล (Database) มีทั้งหมด: {len(df_db)} แถว**")
+        if db_ready:
+            st.success(f"🔍 พบคอลัมน์หลัก:\n- ประเภท=`{db_
