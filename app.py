@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. แสดงหัวข้อหลักและคำอธิบายด้วยคำสั่งมาตรฐาน (ปลอดภัยจากข้อผิดพลาดตรรกะสตริง)
+# 2. แสดงหัวข้อหลักและคำอธิบายด้วยคำสั่งมาตรฐาน
 st.title("📊 ระบบคำนวณและเติมช่อง SALE PRICE อัตโนมัติ (AMR)")
 st.caption("อัปโหลดไฟล์บันทึกใบส่งสินค้าชั่วคราวประจำเดือน เพื่อเทียบราคาขายจากระบบฐานข้อมูลต้นทุนบน GitHub")
 
@@ -89,16 +89,4 @@ if uploaded_file is not None:
                 df_process = df_process.drop(columns=['SALE PRICE'])
                 
             # ยุบรวมข้อมูลฐานข้อมูลป้องกันราคาซ้ำซ้อน
-            df_db_lookup = df_db[matching_keys + ['SALE PRICE']].drop_duplicates(subset=matching_keys)
-            
-            # ดำเนินการเปรียบเทียบตารางและจับคู่ราคา (Left Merge)
-            df_result = pd.merge(
-                df_process,
-                df_db_lookup,
-                on=matching_keys,
-                how='left'
-            )
-            
-            # ตรวจสอบข้อมูลสถิติ
-            matched_rows = df_result['SALE PRICE'].notna().sum()
-            unmatched_rows
+            df_db_lookup = df_db[matching_keys + ['SALE PRICE']].drop_duplicates(subset=matching_keys
