@@ -43,8 +43,6 @@ if db_file and curr_file:
     curr_pkg_col = find_smart_column(df_curr.columns, pkg_kws)
     curr_mat_col = find_smart_column(df_curr.columns, mat_kws)
     curr_ratio_col = find_smart_column(df_curr.columns, ratio_kws)
-    # ค้นหาว่าไฟล์ปัจจุบันแอบมีคอลัมน์ราคาเดิมอยู่ด้วยหรือไม่
-    curr_price_col = find_smart_column(df_curr.columns, price_kws)
 
     st.subheader("📊 1. ตรวจสอบไฟล์ที่อัปโหลด (ระบบตรวจจับคอลัมน์อัตโนมัติ 4 เงื่อนไข)")
     
@@ -96,13 +94,17 @@ if db_file and curr_file:
             
             df_db_prices = db_working[join_keys + ["SALE PRICE"]].drop_duplicates(subset=join_keys, keep='last')
             
-            # ✅ แก้ไขปัญหารายการซ้ำ: สั่งลบคอลัมน์ราคาเดิมทุกรูปแบบที่ตรวจเจอในไฟล์ปัจจุบันออกไปก่อน เพื่อไม่ให้ชื่อซ้ำกันตอน Merge
-            columns_to_drop = ["SALE PRICE"]
-            if curr_price_col and curr_price_col in curr_working.columns:
-                columns_to_drop.append(curr_price_col)
+            # 1. ค้นหาและลบคอลัมน์ราคาเดิมในไฟล์ปัจจุบันออกทุกรูปแบบ (Case-insensitive) ก่อนทำการ Merge
+            cols_to_drop = []
+            for c in curr_working.columns:
+                c_upper = str(c).strip().upper().replace(" ", "")
+                # ตรวจสอบหาคอลัมน์ที่เป็นราคาขายเดิมเพื่อเตรียมลบออก
+                if c_upper in ["SALEPRICE", "PRICE", "ราคาขาย", "ราคา"]:
+                    cols_to_drop.append(c)
             
-            curr_working_clean = curr_working.drop(columns=columns_to_drop, errors="ignore")
+            curr_working_clean = curr_working.drop(columns=cols_to_drop, errors="ignore")
             
+            # 2. เชื่อมข้อมูลแบบ Left Join
             df_result = pd.merge(
                 curr_working_clean,
                 df_db_prices,
@@ -110,6 +112,10 @@ if db_file and curr_file:
                 how="left"
             )
             
+            # 3. บังคับตัดคอลัมน์ชื่อซ้ำกันในตารางผลลัพธ์ทิ้งแบบอัตโนมัติ (ป้องกัน Error ของ Streamlit)
+            df_result = df_result.loc[:, ~df_result.columns.duplicated()]
+            
+            # เติมคำว่า Not Found ในแถวที่จับคู่ไม่เจอราคา
             df_result["SALE PRICE"] = df_result["SALE PRICE"].fillna("Not Found")
             
             is_found_mask = df_result["SALE PRICE"].astype(str) != "Not Found"
