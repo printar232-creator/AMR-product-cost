@@ -83,30 +83,4 @@ if uploaded_file is not None:
                         if "SALE PRICE" in df_proc.columns:
                             df_proc = df_proc.drop(columns=["SALE PRICE"])
                             
-                        # ค้นหาและจับคู่ข้อมูลราคาด้วยวิธี Merge (เสมือน VLOOKUP บนเงื่อนไขหลายคอลัมน์)
-                        df_result_proc = pd.merge(df_proc, df_db_clean, on=["TYPE OF PRODUCT", "PAKAGING", "MATERIAL"], how="left")
-                        
-                        # สร้างตัวแปรส่งออกแบบคงรูปแบบชื่อคอลัมน์เดิมของผู้ใช้ไว้ และเติมข้อมูลราคาขายที่ดึงได้
-                        df_final = df_input.copy()
-                        df_final["SALE PRICE"] = df_result_proc["SALE PRICE"]
-                        
-                        st.subheader("✨ พรีวิวผลลัพธ์ข้อมูลใหม่ที่เติมราคาขายแล้ว")
-                        st.dataframe(df_final)
-                        
-                        # แสดงสถิติการดึงข้อมูล
-                        matched_count = df_final["SALE PRICE"].notna().sum()
-                        unmatched_count = df_final["SALE PRICE"].isna().sum()
-                        st.info(f"📊 สรุปการทำงาน: จับคู่ราคาสำเร็จ {matched_count} รายการ | ⚠️ ไม่พบราคาในฐานข้อมูล {unmatched_count} รายการ")
-                        
-                        # ฟังก์ชันสำหรับแปลง DataFrame กลับเป็น Excel (.xlsx) เพื่อให้ดาวน์โหลด
-                        import io
-                        output = io.BytesIO()
-                        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                            df_final.to_excel(writer, index=False, sheet_name='Sheet1')
-                        excel_data = output.getvalue()
-                        
-                        # แสดงปุ่มให้ดาวน์โหลดไฟล์ใหม่ที่ผ่านการประมวลผลแล้ว
-                        st.download_button(
-                            label="📥 ดาวน์โหลดไฟล์ผลลัพธ์ใบส่งสินค้าใหม่ (.xlsx)",
-                            data=excel_data,
-                            file_name=f"Processed_{
+                        # ค
