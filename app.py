@@ -1,4 +1,4 @@
-import streamlit as pd
+import streamlit as st
 import pandas as pd
 
 # ตั้งค่าหน้าเว็บ Streamlit
