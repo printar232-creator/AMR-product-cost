@@ -43,6 +43,8 @@ if db_file and curr_file:
     curr_pkg_col = find_smart_column(df_curr.columns, pkg_kws)
     curr_mat_col = find_smart_column(df_curr.columns, mat_kws)
     curr_ratio_col = find_smart_column(df_curr.columns, ratio_kws)
+    # ค้นหาว่าไฟล์ปัจจุบันแอบมีคอลัมน์ราคาเดิมอยู่ด้วยหรือไม่
+    curr_price_col = find_smart_column(df_curr.columns, price_kws)
 
     st.subheader("📊 1. ตรวจสอบไฟล์ที่อัปโหลด (ระบบตรวจจับคอลัมน์อัตโนมัติ 4 เงื่อนไข)")
     
@@ -75,7 +77,6 @@ if db_file and curr_file:
             db_working = df_db.copy()
             curr_working = df_curr.copy()
             
-            # ✅ แก้ไขจุดลูปทำความสะอาดข้อมูลให้ถูกต้องสมบูรณ์
             for col in [db_type_col, db_pkg_col, db_mat_col, db_ratio_col]:
                 db_working[col] = db_working[col].astype(str).str.strip()
                 
@@ -95,7 +96,12 @@ if db_file and curr_file:
             
             df_db_prices = db_working[join_keys + ["SALE PRICE"]].drop_duplicates(subset=join_keys, keep='last')
             
-            curr_working_clean = curr_working.drop(columns=["SALE PRICE"], errors="ignore")
+            # ✅ แก้ไขปัญหารายการซ้ำ: สั่งลบคอลัมน์ราคาเดิมทุกรูปแบบที่ตรวจเจอในไฟล์ปัจจุบันออกไปก่อน เพื่อไม่ให้ชื่อซ้ำกันตอน Merge
+            columns_to_drop = ["SALE PRICE"]
+            if curr_price_col and curr_price_col in curr_working.columns:
+                columns_to_drop.append(curr_price_col)
+            
+            curr_working_clean = curr_working.drop(columns=columns_to_drop, errors="ignore")
             
             df_result = pd.merge(
                 curr_working_clean,
