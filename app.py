@@ -67,10 +67,3 @@ if db_file and curr_file:
                 )
                 
                 df_result["SALE PRICE"] = df_result["SALE PRICE"].fillna("Not Found")
-                
-                found_count = (df_result["SALE PRICE"] != "Not Found").sum()
-                not_found_count = (df_result["SALE PRICE"] == "Not Found").sum()
-                
-                st.success(f"✅ ประมวลผลสำเร็จ! เติมราคาขายเรียบร้อยทั้งหมด {len(df_result)} แถว")
-                
-                c1, c
