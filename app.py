@@ -4,11 +4,11 @@ import io
 
 st.set_page_config(page_title="AMR Auto Price Matcher", layout="wide")
 
-st.title("📦 AMR Auto Product Price Matching System (4 Criteria - Smart Match)")
+st.title("📦 AMR Auto Product Price Matching System (Smart Fallback Mode)")
 st.markdown("""
-ระบบจับคู่และกรอกราคาขาย (**SALE PRICE**) อัตโนมัติแบบคลิกเดียวจบ **เวอร์ชันแก้ไขปัญหาจับคู่ไม่เจอ (Not Found)**
-โดยระบบจะสแกนหาและจับคู่จาก 4 หัวข้อหลักให้อัตโนมัติ:
-1. **TYPE OF PRODUCT** | 2. **PACKAGING** | 3. **MATERIAL** | 4. **RATIO**
+ระบบจับคู่และกรอกราคาขาย (**SALE PRICE**) อัตโนมัติแบบคลิกเดียวจบ **เวอร์ชันแก้ไขปัญหา Not Found อัจฉริยะ**
+- **รอบที่ 1:** จับคู่แบบแม่นยำสูงด้วย 4 เงื่อนไข (`TYPE OF PRODUCT` + `PACKAGING` + `MATERIAL` + `RATIO`)
+- **รอบที่ 2 (Fallback):** ถ้ารายการไหนไม่เจอ จะดึงราคาใหม่อัตโนมัติด้วย 3 เงื่อนไขหลัก เพื่อให้ได้ราคาครบถ้วนที่สุด
 """)
 
 st.sidebar.header("📁 อัปโหลดไฟล์ข้อมูล")
@@ -29,7 +29,8 @@ def normalize_series(series):
                  .str.replace("-", "", regex=False)\
                  .str.replace("_", "", regex=False)\
                  .str.replace(".", "", regex=False)\
-                 .str.replace("/", "", regex=False)
+                 .str.replace("/", "", regex=False)\
+                 .replace(["NONE", "NAN", ""], "EMPTY")
 
 if db_file and curr_file:
     df_db = pd.read_excel(db_file)
@@ -52,22 +53,19 @@ if db_file and curr_file:
     curr_mat_col = find_smart_column(df_curr.columns, mat_kws)
     curr_ratio_col = find_smart_column(df_curr.columns, ratio_kws)
 
-    st.subheader("📊 1. ตรวจสอบไฟล์ที่อัปโหลด (ระบบตรวจจับคอลัมน์อัตโนมัติ 4 เงื่อนไข)")
+    st.subheader("📊 1. ตรวจสอบไฟล์ที่อัปโหลด (ระบบตรวจจับคอลัมน์อัตโนมัติ)")
     
-    db_ready = db_type_col and db_pkg_col and db_mat_col and db_ratio_col and db_price_col
-    curr_ready = curr_type_col and curr_pkg_col and curr_mat_col and curr_ratio_col
+    # ฝั่งข้อมูลปัจจุบันขอแค่มี 3 คอลัมน์หลักก็ยอมให้ทำงานได้ ส่วน RATIO มีหรือไม่มีก็ได้
+    db_ready = db_type_col and db_pkg_col and db_mat_col and db_price_col
+    curr_ready = curr_type_col and curr_pkg_col and curr_mat_col
 
     col1, col2 = st.columns(2)
     with col1:
         st.markdown(f"🗃️ **ไฟล์ฐานข้อมูล (Database) มีทั้งหมด: {len(df_db)} แถว**")
         if db_ready:
-            # ✅ ปรับข้อความแสดงผลให้สั้นลง แบ่งบรรทัดชัดเจน ป้องกันปัญหาโค้ดขาดตอนคัดลอก
             st.success("🔍 พบคอลัมน์หลักฝั่ง Database เรียบร้อยแล้ว")
-            st.text(f"- ประเภท: {db_type_col}")
-            st.text(f"- บรรจุภัณฑ์: {db_pkg_col}")
-            st.text(f"- วัสดุ: {db_mat_col}")
-            st.text(f"- อัตราส่วน: {db_ratio_col}")
-            st.text(f"- ราคา: {db_price_col}")
+            st.text(f"- ประเภท: {db_type_col} | บรรจุภัณฑ์: {db_pkg_col} | วัสดุ: {db_mat_col}")
+            st.text(f"- อัตราส่วน (RATIO): {db_ratio_col if db_ratio_col else 'ไม่พบ (จะใช้ระบบ Fallback แทน)'} | ราคา: {db_price_col}")
         else:
             st.error("❌ ฝั่ง Database: ตรวจหาคอลัมน์หลักบางคอลัมน์ไม่เจอ")
         st.dataframe(df_db)
@@ -76,40 +74,22 @@ if db_file and curr_file:
         st.markdown(f"📄 **ไฟล์ปัจจุบันที่ต้องการเติมราคา มีทั้งหมด: {len(df_curr)} แถว**")
         if curr_ready:
             st.success("🔍 พบคอลัมน์หลักฝั่ง ไฟล์ปัจจุบัน เรียบร้อยแล้ว")
-            st.text(f"- ประเภท: {curr_type_col}")
-            st.text(f"- บรรจุภัณฑ์: {curr_pkg_col}")
-            st.text(f"- วัสดุ: {curr_mat_col}")
-            st.text(f"- อัตราส่วน: {curr_ratio_col}")
+            st.text(f"- ประเภท: {curr_type_col} | บรรจุภัณฑ์: {curr_pkg_col} | วัสดุ: {curr_mat_col}")
+            st.text(f"- อัตราส่วน (RATIO): {curr_ratio_col if curr_ratio_col else 'ไม่พบ'}")
         else:
             st.error("❌ ฝั่ง ไฟล์ปัจจุบัน: ตรวจหาคอลัมน์หลักบางคอลัมน์ไม่เจอ")
         st.dataframe(df_curr)
 
     if not db_ready or not curr_ready:
-        st.warning("⚠️ โปรดตรวจสอบคอลัมน์ของทั้ง 2 ไฟล์ให้ถูกต้องก่อนรันระบบครับ")
+        st.warning("⚠️ โปรดตรวจสอบคอลัมน์ของทั้ง 2 ไฟล์ให้มีฟิลด์ประเภท บรรจุภัณฑ์ และวัสดุ เป็นอย่างน้อยครับ")
     else:
         st.markdown("---")
-        if st.button("🚀 เริ่มต้นดึงข้อมูลราคาขายอัตโนมัติ (Run Smart Auto-Match)"):
+        if st.button("🚀 เริ่มต้นดึงข้อมูลราคาขายอัตโนมัติ (Run Smart Fallback Match)"):
             
             db_working = df_db.copy()
-            curr_working = df_curr.copy()
-            
             df_final_output = df_curr.copy()
             
-            db_working["join_type"] = normalize_series(db_working[db_type_col])
-            db_working["join_pkg"] = normalize_series(db_working[db_pkg_col])
-            db_working["join_mat"] = normalize_series(db_working[db_mat_col])
-            db_working["join_ratio"] = normalize_series(db_working[db_ratio_col])
-            
-            df_final_output["join_type"] = normalize_series(df_final_output[curr_type_col])
-            df_final_output["join_pkg"] = normalize_series(df_final_output[curr_pkg_col])
-            df_final_output["join_mat"] = normalize_series(df_final_output[curr_mat_col])
-            df_final_output["join_ratio"] = normalize_series(df_final_output[curr_ratio_col])
-            
-            match_keys = ["join_type", "join_pkg", "join_mat", "join_ratio"]
-            
-            df_db_prices = db_working[match_keys + [db_price_col]].drop_duplicates(subset=match_keys, keep='last')
-            df_db_prices = df_db_prices.rename(columns={db_price_col: "SALE PRICE"})
-            
+            # ลบคอลัมน์ราคาขายเดิมที่มีอยู่ในไฟล์ปัจจุบันออกก่อน (ป้องกันคอลัมน์ซ้ำ)
             cols_to_drop = []
             for c in df_final_output.columns:
                 c_upper = str(c).strip().upper().replace(" ", "")
@@ -117,23 +97,53 @@ if db_file and curr_file:
                     cols_to_drop.append(c)
             df_final_output = df_final_output.drop(columns=cols_to_drop, errors="ignore")
             
-            df_result = pd.merge(
-                df_final_output,
-                df_db_prices,
-                on=match_keys,
-                how="left"
-            )
+            # เตรียมคีย์ทำความสะอาดชั่วคราวสำหรับดึงข้อมูล
+            db_working["join_type"] = normalize_series(db_working[db_type_col])
+            db_working["join_pkg"] = normalize_series(db_working[db_pkg_col])
+            db_working["join_mat"] = normalize_series(db_working[db_mat_col])
             
-            df_result = df_result.drop(columns=match_keys, errors="ignore")
+            df_final_output["join_type"] = normalize_series(df_final_output[curr_type_col])
+            df_final_output["join_pkg"] = normalize_series(df_final_output[curr_pkg_col])
+            df_final_output["join_mat"] = normalize_series(df_final_output[curr_mat_col])
+            
+            # ตรวจสอบเงื่อนไข RATIO
+            has_ratio = db_ratio_col is not None and curr_ratio_col is not None
+            if has_ratio:
+                db_working["join_ratio"] = normalize_series(db_working[db_ratio_col])
+                df_final_output["join_ratio"] = normalize_series(df_final_output[curr_ratio_col])
+            
+            # --- รอบที่ 1: ค้นหาแบบ 4 เงื่อนไข (หรือ 3 เงื่อนไขหลักถ้าไม่มีคอลัมน์ RATIO) ---
+            keys_round1 = ["join_type", "join_pkg", "join_mat", "join_ratio"] if has_ratio else ["join_type", "join_pkg", "join_mat"]
+            df_db_r1 = db_working[keys_round1 + [db_price_col]].drop_duplicates(subset=keys_round1, keep='last')
+            df_db_r1 = df_db_r1.rename(columns={db_price_col: "SALE PRICE_R1"})
+            
+            df_result = pd.merge(df_final_output, df_db_r1, on=keys_round1, how="left")
+            
+            # --- รอบที่ 2: ค้นหาแบบ Fallback (3 เงื่อนไขหลัก) เพื่อเก็บตกกรณีค่า RATIO ไม่ตรงกัน ---
+            keys_round2 = ["join_type", "join_pkg", "join_mat"]
+            df_db_r2 = db_working[keys_round2 + [db_price_col]].drop_duplicates(subset=keys_round2, keep='last')
+            df_db_r2 = df_db_r2.rename(columns={db_price_col: "SALE PRICE_R2"})
+            
+            df_result = pd.merge(df_result, df_db_r2, on=keys_round2, how="left")
+            
+            # เลือกใช้ราคาจากรอบที่ 1 ก่อน ถ้ารอบที่ 1 ไม่มี ค่อยดึงรอบที่ 2 มาใส่แทน
+            df_result["SALE PRICE"] = df_result["SALE PRICE_R1"].fillna(df_result["SALE PRICE_R2"])
+            
+            # ลบคอลัมน์ที่ใช้ประมวลผลชั่วคราวออกให้ตารางสะอาด
+            cols_clean = ["join_type", "join_pkg", "join_mat", "join_ratio", "SALE PRICE_R1", "SALE PRICE_R2"]
+            df_result = df_result.drop(columns=cols_clean, errors="ignore")
             df_result = df_result.loc[:, ~df_result.columns.duplicated()]
+            
+            # เติมคำว่า Not Found ในจุดที่หาไม่เจอจริง ๆ ทั้งสองรอบ
             df_result["SALE PRICE"] = df_result["SALE PRICE"].fillna("Not Found")
             
+            # นับจำนวนผลลัพธ์
             is_found_mask = df_result["SALE PRICE"].astype(str) != "Not Found"
             found_count = int(is_found_mask.values.sum())
             total_rows = len(df_result)
             not_found_count = total_rows - found_count
             
-            st.success("✅ ประมวลผลสำเร็จ! ดึงข้อมูลราคาขายด้วยระบบดักจับคำเพี้ยนเรียบร้อยแล้ว")
+            st.success("✅ ประมวลผลสำเร็จ! ดึงข้อมูลราคาขายด้วยระบบจับคู่อัจฉริยะ 2 ชั้นเรียบร้อยแล้ว")
             st.info(f"📋 จำนวนแถวผลลัพธ์ทั้งหมด: {total_rows} แถว | เจอราคา: {found_count} รายการ | ไม่เจอราคา: {not_found_count} รายการ")
             
             st.markdown("### 📋 2. ตารางผลลัพธ์ข้อมูลเวอร์ชันอัปเดต (เติมราคาขายเรียบร้อย)")
