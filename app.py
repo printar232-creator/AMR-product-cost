@@ -4,9 +4,9 @@ import io
 
 st.set_page_config(page_title="AMR Auto Price Matcher", layout="wide")
 
-st.title("📦 AMR Auto Product Price Matching System (4 Criteria - All Rows)")
+st.title("📦 AMR Auto Product Price Matching System (4 Criteria - Smart Match)")
 st.markdown("""
-ระบบจับคู่และกรอกราคาขาย (**SALE PRICE**) อัตโนมัติแบบคลิกเดียวจบ **เวอร์ชันดึงข้อมูลครบทุกแถว 100%**
+ระบบจับคู่และกรอกราคาขาย (**SALE PRICE**) อัตโนมัติแบบคลิกเดียวจบ **เวอร์ชันแก้ไขปัญหาจับคู่ไม่เจอ (Not Found)**
 โดยระบบจะสแกนหาและจับคู่จาก 4 หัวข้อหลักให้อัตโนมัติ:
 1. **TYPE OF PRODUCT** | 2. **PACKAGING** | 3. **MATERIAL** | 4. **RATIO**
 """)
@@ -22,6 +22,15 @@ def find_smart_column(df_columns, target_keywords):
             if kw in col_clean:
                 return col
     return None
+
+# ฟังก์ชันพิเศษในการทำความสะอาดข้อมูลขั้นสุดเพื่อลดโอกาสเกิด Not Found
+def normalize_series(series):
+    return series.astype(str).str.strip().str.upper()\
+                 .str.replace(" ", "", regex=False)\
+                 .str.replace("-", "", regex=False)\
+                 .str.replace("_", "", regex=False)\
+                 .str.replace(".", "", regex=False)\
+                 .str.replace("/", "", regex=False)
 
 if db_file and curr_file:
     df_db = pd.read_excel(db_file)
@@ -67,78 +76,30 @@ if db_file and curr_file:
         st.dataframe(df_curr)
 
     if not db_ready or not curr_ready:
-        st.warning("⚠️ โปรดตรวจสอบให้แน่ใจว่าทั้ง 2 ไฟล์มีชื่อหัวคอลัมน์เกี่ยวกับ RATIO หรือ อัตราส่วน เพื่อให้ระบบทำงานต่อได้ครับ")
+        st.warning("⚠️ โปรดตรวจสอบคอลัมน์ของทั้ง 2 ไฟล์ให้ถูกต้องก่อนรันระบบครับ")
     else:
         st.markdown("---")
-        if st.button("🚀 เริ่มต้นดึงข้อมูลราคาขายอัตโนมัติ (Run Auto-Match 4 Criteria)"):
+        if st.button("🚀 เริ่มต้นดึงข้อมูลราคาขายอัตโนมัติ (Run Smart Auto-Match)"):
             
             db_working = df_db.copy()
             curr_working = df_curr.copy()
             
-            for col in [db_type_col, db_pkg_col, db_mat_col, db_ratio_col]:
-                db_working[col] = db_working[col].astype(str).str.strip()
-                
-            for col in [curr_type_col, curr_pkg_col, curr_mat_col, curr_ratio_col]:
-                curr_working[col] = curr_working[col].astype(str).str.strip()
+            # เก็บข้อมูลเวอร์ชันดั้งเดิมของไฟล์ปัจจุบันไว้ เพื่อใช้แสดงผลในไฟล์ดาวน์โหลดตอนท้าย
+            df_final_output = df_curr.copy()
             
-            rename_dict = {
-                db_type_col: curr_type_col,
-                db_pkg_col: curr_pkg_col,
-                db_mat_col: curr_mat_col,
-                db_ratio_col: curr_ratio_col,
-                db_price_col: "SALE PRICE"
-            }
-            db_working = db_working.rename(columns=rename_dict)
+            # สร้าง "คีย์ชั่วคราวสำหรับจับคู่" โดยล้างเครื่องหมาย เว้นวรรค ตัวเล็กตัวใหญ่ออกให้หมด
+            db_working["join_type"] = normalize_series(db_working[db_type_col])
+            db_working["join_pkg"] = normalize_series(db_working[db_pkg_col])
+            db_working["join_mat"] = normalize_series(db_working[db_mat_col])
+            db_working["join_ratio"] = normalize_series(db_working[db_ratio_col])
             
-            join_keys = [curr_type_col, curr_pkg_col, curr_mat_col, curr_ratio_col]
+            df_final_output["join_type"] = normalize_series(df_final_output[curr_type_col])
+            df_final_output["join_pkg"] = normalize_series(df_final_output[curr_pkg_col])
+            df_final_output["join_mat"] = normalize_series(df_final_output[curr_mat_col])
+            df_final_output["join_ratio"] = normalize_series(df_final_output[curr_ratio_col])
             
-            df_db_prices = db_working[join_keys + ["SALE PRICE"]].drop_duplicates(subset=join_keys, keep='last')
+            # นิยามคีย์เชื่อม
+            match_keys = ["join_type", "join_pkg", "join_mat", "join_ratio"]
             
-            # 1. ค้นหาและลบคอลัมน์ราคาเดิมในไฟล์ปัจจุบันออกทุกรูปแบบ (Case-insensitive) ก่อนทำการ Merge
-            cols_to_drop = []
-            for c in curr_working.columns:
-                c_upper = str(c).strip().upper().replace(" ", "")
-                # ตรวจสอบหาคอลัมน์ที่เป็นราคาขายเดิมเพื่อเตรียมลบออก
-                if c_upper in ["SALEPRICE", "PRICE", "ราคาขาย", "ราคา"]:
-                    cols_to_drop.append(c)
-            
-            curr_working_clean = curr_working.drop(columns=cols_to_drop, errors="ignore")
-            
-            # 2. เชื่อมข้อมูลแบบ Left Join
-            df_result = pd.merge(
-                curr_working_clean,
-                df_db_prices,
-                on=join_keys,
-                how="left"
-            )
-            
-            # 3. บังคับตัดคอลัมน์ชื่อซ้ำกันในตารางผลลัพธ์ทิ้งแบบอัตโนมัติ (ป้องกัน Error ของ Streamlit)
-            df_result = df_result.loc[:, ~df_result.columns.duplicated()]
-            
-            # เติมคำว่า Not Found ในแถวที่จับคู่ไม่เจอราคา
-            df_result["SALE PRICE"] = df_result["SALE PRICE"].fillna("Not Found")
-            
-            is_found_mask = df_result["SALE PRICE"].astype(str) != "Not Found"
-            found_count = int(is_found_mask.values.sum())
-            total_rows = len(df_result)
-            not_found_count = total_rows - found_count
-            
-            st.success("✅ ประมวลผลสำเร็จ! ดึงข้อมูลครบทุกแถวโดยอ้างอิง 4 เงื่อนไขเรียบร้อยแล้ว")
-            st.info(f"📋 จำนวนแถวผลลัพธ์ทั้งหมด: {total_rows} แถว | เจอราคา: {found_count} รายการ | ไม่เจอราคา: {not_found_count} รายการ")
-            
-            st.markdown("### 📋 2. ตารางผลลัพธ์ข้อมูลเวอร์ชันอัปเดต (เทียบ 4 เงื่อนไข)")
-            st.dataframe(df_result)
-            
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_result.to_excel(writer, index=False, sheet_name='Updated_Sale_Price')
-            processed_data = output.getvalue()
-            
-            st.download_button(
-                label="📥 ดาวน์โหลดไฟล์ที่เติมราคาขายเสร็จสมบูรณ์ (Excel)",
-                data=processed_data,
-                file_name="updated_sales_price_4_criteria.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-else:
-    st.info("💡 คำแนะนำ: โปรดอัปโหลดไฟล์ทั้ง 2 ไฟล์ที่แถบเมนูด้านซ้ายเพื่อเริ่มระบบทำงานอัตโนมัติ")
+            # ดึงราคารายการล่าสุดของแต่ละเงื่อนไขและลบตัวซ้ำใน DB
+            df_db_prices = db_working[match_keys + [db_price_col]].drop_duplicates(subset=match
