@@ -38,13 +38,9 @@ if db_file and curr_file:
     ratio_kws = ["RATIO", "อัตราส่วน", "สัดส่วน", "เปอร์เซ็นต์", "MESH"]
     price_kws = ["SALEPRICE", "PRICE", "ราคาขาย", "ราคา"]
 
+    # ✅ ปรับโค้ดสแกนคอลัมน์ให้สั้นกระชับที่สุด ป้องกันปัญหาโดนตัดขาด 100%
     db_type_col = find_smart_column(df_db.columns, type_kws)
     db_pkg_col = find_smart_column(df_db.columns, pkg_kws)
     db_mat_col = find_smart_column(df_db.columns, mat_kws)
     db_ratio_col = find_smart_column(df_db.columns, ratio_kws)
     db_price_col = find_smart_column(df_db.columns, price_kws)
-
-    curr_type_col = find_smart_column(df_curr.columns, type_kws)
-    curr_pkg_col = find_smart_column(df_curr.columns, pkg_kws)
-    curr_mat_col = find_smart_column(df_curr.columns, mat_kws)
-    curr_ratio_col = find_smart
