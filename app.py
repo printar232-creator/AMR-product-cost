@@ -31,10 +31,12 @@ if db_file and curr_file:
     st.subheader("📊 1. ตรวจสอบไฟล์ที่อัปโหลด")
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown(f"🗃️ **ไฟล์ฐานข้อมูล (Database): {len(df_db)} แถว**")
+        st.markdown("🗃️ **ไฟล์ฐานข้อมูล (Database) จำนวนแถวทั้งหมด:**")
+        st.write(len(df_db))
         st.dataframe(df_db.head(5))
     with col2:
-        st.markdown(f"📄 **ไฟล์ปัจจุบันที่ต้องการเติมราคา: {len(df_curr)} แถว**")
+        st.markdown("📄 **ไฟล์ปัจจุบันที่ต้องการเติมราคา จำนวนแถวทั้งหมด:**")
+        st.write(len(df_curr))
         st.dataframe(df_curr.head(5))
 
     missing_db = [col for col in required_keys if col not in df_db.columns]
@@ -54,20 +56,4 @@ if db_file and curr_file:
                 df_db[col] = df_db[col].astype(str).str.strip()
                 df_curr[col] = df_curr[col].astype(str).str.strip()
             
-            df_db_prices = df_db[required_keys + ["SALE PRICE"]].drop_duplicates(subset=required_keys, keep='last')
-            
-            df_curr_clean = df_curr.drop(columns=["SALE PRICE"], errors="ignore")
-            
-            df_result = pd.merge(
-                df_curr_clean,
-                df_db_prices,
-                on=required_keys,
-                how="left"
-            )
-            
-            df_result["SALE PRICE"] = df_result["SALE PRICE"].fillna("Not Found")
-            
-            found_count = int((df_result["SALE PRICE"] != "Not Found").sum())
-            not_found_count = int((df_result["SALE PRICE"] == "Not Found").sum())
-            
-            st.success(f"✅ ประม
+            df_db_prices = df_db[required_keys + ["SALE PRICE"]].drop_duplicates(subset=required_keys, keep='last
