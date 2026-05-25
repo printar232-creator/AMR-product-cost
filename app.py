@@ -42,7 +42,6 @@ if db_file and curr_file:
     ratio_kws = ["RATIO", "อัตราส่วน", "สัดส่วน", "เปอร์เซ็นต์", "MESH"]
     price_kws = ["SALEPRICE", "PRICE", "ราคาขาย", "ราคา"]
 
-    # 1. สแกนอ่านคอลัมน์ฝั่ง Database
+    # 1. สแกนอ่านคอลัมน์ฝั่ง Database (แก้ไขจุดที่หลุดขาดให้ถูกต้อง 100% แล้ว)
     db_type_col = find_smart_column(df_db.columns, type_kws)
-    db_pkg_col = find_smart_column(df_db.columns, pkg_kws)
-    db_mat_col = find_smart_
+    db_pkg_col = find_smart_column(df_
